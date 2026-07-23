@@ -52,6 +52,7 @@ This roadmap documents the strategic improvement vectors identified during archi
   - Integration with Telegram Payments API (Yookassa / Telegram Stars / Tinkoff Pay).
   - Invoice generation upon client approval of ticket final price.
   - Automatic status transition to `in_progress` upon verified payment webhook.
+- **Status**: Implemented in Release 1.7.
 
 ---
 

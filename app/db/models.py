@@ -50,6 +50,13 @@ class RepairStage(str, enum.Enum):
     READY = "ready"
 
 
+class PaymentStatus(str, enum.Enum):
+    UNPAID = "unpaid"
+    PREPAID = "prepaid"
+    PAID = "paid"
+    REFUNDED = "refunded"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -88,6 +95,9 @@ class Ticket(Base):
     repair_stage: Mapped[RepairStage] = mapped_column(Enum(RepairStage), default=RepairStage.RECEIVED, index=True)
     pickup_method: Mapped[str | None] = mapped_column(String(50), default="self_pickup")
 
+    payment_status: Mapped[PaymentStatus] = mapped_column(Enum(PaymentStatus), default=PaymentStatus.UNPAID, index=True)
+    payment_id: Mapped[str | None] = mapped_column(String(255))
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -96,6 +106,7 @@ class Ticket(Base):
     calendar_slots: Mapped[list["CalendarSlot"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
     service_items: Mapped[list["TicketServiceItem"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
     journal_entries: Mapped[list["RepairJournalEntry"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
+    payments: Mapped[list["PaymentTransaction"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
 
 
 class Media(Base):
@@ -202,3 +213,17 @@ class RepairJournalEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     ticket: Mapped["Ticket"] = relationship(back_populates="journal_entries")
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), index=True)
+    amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(10), default="RUB")
+    telegram_payment_charge_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_payment_charge_id: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="payments")

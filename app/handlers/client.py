@@ -5,12 +5,12 @@ from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, Message, PreCheckoutQuery, ReplyKeyboardRemove
 from loguru import logger
 from sqlalchemy import desc, select
 
 from app.config import settings
-from app.db.models import CalendarSlot, Media, MediaType, RepairJournalEntry, Ticket, TicketStatus, User, UserRole
+from app.db.models import CalendarSlot, Media, MediaType, RepairJournalEntry, Ticket, TicketStatus, TicketServiceItem, User, UserRole
 from app.db.session import AsyncSessionLocal
 from app.keyboards.inline import (
     back_to_menu_keyboard,
@@ -27,6 +27,7 @@ from app.services.ai import AIService
 from app.services.calendar import format_slot, reserve_next_slot
 from app.services.media_group import MediaGroupCollector
 from app.services.metrics import metrics
+from app.services.payments import build_invoice_payload, record_successful_payment
 from app.services.storage import media_storage
 from app.services.tickets import build_client_preview, build_final_offer, build_live_ticket_card, build_ticket_card, status_label
 
@@ -514,3 +515,82 @@ async def handle_client_set_pickup(callback: CallbackQuery) -> None:
             reply_markup=client_ticket_keyboard(ticket_id),
         )
     await callback.answer("Способ получения сохранен")
+
+
+@router.callback_query(F.data.startswith("client:pay:"))
+async def handle_client_pay_ticket(callback: CallbackQuery, bot: Bot) -> None:
+    ticket_id = int(callback.data.split(":")[2])
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if not ticket or not ticket.final_price:
+            await callback.answer("Заявка не найдена или сумма еще не выставлена", show_alert=True)
+            return
+
+        items = (await session.scalars(
+            select(TicketServiceItem).where(TicketServiceItem.ticket_id == ticket.id)
+        )).all()
+
+        invoice_params = build_invoice_payload(ticket, items)
+
+    if callback.message:
+        try:
+            await bot.send_invoice(chat_id=callback.message.chat.id, **invoice_params)
+            await callback.answer("Счет на оплату сформирован")
+        except Exception as err:
+            logger.error(f"Error sending invoice for ticket #{ticket_id}: {err}")
+            await callback.answer(f"Ошибка выдачи счета: {err}", show_alert=True)
+
+
+@router.pre_checkout_query()
+async def handle_pre_checkout_query(pre_checkout_query: PreCheckoutQuery) -> None:
+    if pre_checkout_query.invoice_payload.startswith("ticket_payment_"):
+        await pre_checkout_query.answer(ok=True)
+    else:
+        await pre_checkout_query.answer(ok=False, error_message="Неизвестный платежный идентификатор.")
+
+
+@router.message(F.successful_payment)
+async def handle_successful_payment(message: Message, bot: Bot) -> None:
+    payment = message.successful_payment
+    if not payment:
+        return
+    payload = payment.invoice_payload
+
+    if not payload.startswith("ticket_payment_"):
+        return
+
+    ticket_id = int(payload.split("_")[2])
+    amount = payment.total_amount / 100.0
+    currency = payment.currency
+
+    async with AsyncSessionLocal() as session:
+        await record_successful_payment(
+            session=session,
+            ticket_id=ticket_id,
+            telegram_charge_id=payment.telegram_payment_charge_id,
+            provider_charge_id=payment.provider_payment_charge_id,
+            amount=amount,
+            currency=currency,
+        )
+        await session.commit()
+
+    metrics.inc("payments_successful_total")
+
+    await message.answer(
+        f"🎉 Оплата в размере {amount:.2f} {currency} по заявке #{ticket_id} успешно получена!\n\n"
+        f"Идентификатор транзакции: {payment.telegram_payment_charge_id}\n"
+        f"Мастер уведомлен и приступает к работе.",
+        reply_markup=client_ticket_keyboard(ticket_id),
+    )
+
+    if settings.masters_chat_id:
+        try:
+            await bot.send_message(
+                settings.masters_chat_id,
+                f"💳 Оплачен счет по заявке #{ticket_id}!\n"
+                f"Сумма: {amount:.2f} {currency}\n"
+                f"Статус оплаты: PAID",
+                reply_markup=master_ticket_keyboard(ticket_id),
+            )
+        except Exception:
+            pass

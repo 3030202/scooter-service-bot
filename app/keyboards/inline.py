@@ -50,7 +50,8 @@ def client_confirmation_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
 def client_final_offer_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Подтверждаю цену", callback_data=f"client:approve_price:{ticket_id}")],
+            [InlineKeyboardButton(text="💳 Оплатить онлайн", callback_data=f"client:pay:{ticket_id}")],
+            [InlineKeyboardButton(text="✅ Подтвердить без оплаты", callback_data=f"client:approve_price:{ticket_id}")],
             [InlineKeyboardButton(text="❌ Отказаться", callback_data=f"client:cancel:{ticket_id}")],
             [InlineKeyboardButton(text="📋 Мои заявки", callback_data="menu:my_orders")],
         ]

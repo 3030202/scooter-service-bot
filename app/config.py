@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     webapp_base_url: str = "http://localhost:8080"
 
+    payment_provider_token: str = ""
+    payments_enabled: bool = True
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @field_validator("master_telegram_ids", "admin_telegram_ids", "workday_numbers", mode="before")
