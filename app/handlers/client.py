@@ -298,14 +298,24 @@ async def collect_photos(message: Message, state: FSMContext, bot: Bot) -> None:
 
             await message.answer("🤖 Фото получены. Выполняю предварительную диагностику.")
 
-            result = await ai_service.analyze_ticket(ticket.description or "", image_paths)
+            from app.services.catalog import attach_catalog_item, list_catalog, seed_catalog
+            await seed_catalog(session)
+            catalog_items = await list_catalog(session, limit=50)
 
-            ticket.ai_fault = result.get("fault")
-            ticket.ai_price_min = result.get("price_min")
-            ticket.ai_price_max = result.get("price_max")
-            ticket.ai_eta = result.get("eta")
-            ticket.ai_raw_json = json.dumps(result, ensure_ascii=False)
+            result = await ai_service.analyze_ticket(ticket.description or "", image_paths, catalog_items=catalog_items)
+
+            ticket.ai_fault = result.fault
+            ticket.ai_price_min = result.price_min
+            ticket.ai_price_max = result.price_max
+            ticket.ai_eta = result.eta
+            ticket.ai_raw_json = result.model_dump_json()
             ticket.status = TicketStatus.DIAGNOSED
+
+            # Auto-attach matched catalog service items
+            catalog_map = {item.code: item for item in catalog_items}
+            for code in result.matched_catalog_codes:
+                if code in catalog_map:
+                    await attach_catalog_item(session, ticket, catalog_map[code], source="ai")
 
             try:
                 reserved_slot = await reserve_next_slot(session, ticket.id)

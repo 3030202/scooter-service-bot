@@ -41,6 +41,7 @@ This roadmap documents the 5 strategic improvement vectors identified during arc
   - AI analysis returns specific recommended `ServiceCatalogItem` codes.
   - Exponential backoff retry & graceful fallback when LLM API is unavailable.
   - Automatic pre-selection of catalog items during ticket creation.
+- **Status**: Implemented in Release 1.6.
 
 ---
 
