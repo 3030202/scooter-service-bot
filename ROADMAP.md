@@ -82,6 +82,7 @@ This roadmap documents the strategic improvement vectors identified during archi
   - Interactive WebApp calendar grid showing hourly/daily load per master.
   - Smart master assignment based on current workload and catalog item duration (`default_eta`).
   - Emergency slot blocking (e.g. master sick leave or holiday).
+- **Status**: Implemented in Release 1.8.
 
 ---
 

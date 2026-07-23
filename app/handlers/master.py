@@ -22,8 +22,10 @@ from app.keyboards.inline import (
     retention_keyboard,
     master_ticket_keyboard,
     master_stage_keyboard,
+    admin_schedule_keyboard,
+    master_schedule_keyboard,
 )
-from app.services.calendar import format_slot, list_free_slots, reserve_slot
+from app.services.calendar import format_slot, get_master_daily_workload, list_free_slots, render_master_workload_card, reserve_slot
 from app.services.metrics import metrics
 from app.services.catalog import attach_catalog_item, list_catalog, match_catalog, recompute_ticket_price, seed_catalog
 from app.services.crm import client_summary, create_retention_after_done, due_retention_items, update_profile_after_ticket_done
@@ -812,3 +814,55 @@ async def handle_journal_photo_upload(message: Message, state: FSMContext, bot: 
         f"✅ Фото этапа успешно сохранено в дневнике работ и отправлено клиенту по заявке #{ticket_id}.",
         reply_markup=master_ticket_keyboard(ticket_id, assigned_to_me=True, is_admin=is_admin(message.from_user.id)),
     )
+
+
+@router.callback_query(F.data == "admin:schedule")
+async def handle_admin_schedule(callback: CallbackQuery) -> None:
+    if not is_authorized_master(callback.from_user.id):
+        await callback.answer("У вас нет доступа к расписанию", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as session:
+        masters = (await session.scalars(select(User).where(User.role == UserRole.MASTER))).all()
+        if not masters:
+            masters = (await session.scalars(select(User).where(User.telegram_id.in_(settings.master_telegram_ids)))).all()
+
+        workloads = []
+        for master in masters:
+            wl = await get_master_daily_workload(session, master.id)
+            wl["master_name"] = master.full_name or (f"Мастер @{master.username}" if master.username else f"Мастер {master.telegram_id}")
+            workloads.append(wl)
+
+    card_text = render_master_workload_card(workloads)
+    if callback.message:
+        await callback.message.edit_text(card_text, reply_markup=admin_schedule_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "master:my_schedule")
+async def handle_master_my_schedule(callback: CallbackQuery) -> None:
+    if not is_authorized_master(callback.from_user.id):
+        await callback.answer("У вас нет прав мастера", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as session:
+        master = await session.scalar(select(User).where(User.telegram_id == callback.from_user.id))
+        master_id = master.id if master else None
+        wl = await get_master_daily_workload(session, master_id)
+
+    lines = [
+        f"📅 Персональное расписание мастера ({wl['date']:%d.%m.%Y}):",
+        f"Всего слотов сегодня: {wl['slots_count']}",
+        f"Загрузка: {wl['capacity_percent']}% ({wl['total_hours']} ч)",
+        "",
+    ]
+    if wl["slots"]:
+        for slot in wl["slots"]:
+            status_tag = " [ЗАБЛОКИРОВАНО]" if slot.status == CalendarSlotStatus.BUSY and slot.note else ""
+            lines.append(f"• {slot.starts_at:%H:%M}–{slot.ends_at:%H:%M} (Заявка #{slot.ticket_id or 'нет'}){status_tag}")
+    else:
+        lines.append("Свободный день! Активных записей нет.")
+
+    if callback.message:
+        await callback.message.edit_text("\n".join(lines), reply_markup=master_schedule_keyboard())
+    await callback.answer()

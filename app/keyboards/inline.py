@@ -183,3 +183,23 @@ def retention_keyboard(reminder_ids: list[int]) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text=f"Напомнить #{rid}", callback_data=f"retention:send:{rid}")] for rid in reminder_ids[:10]]
     rows.append([InlineKeyboardButton(text="⬅️ В меню", callback_data="menu:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_schedule_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Обновить загрузку", callback_data="admin:schedule")],
+            [InlineKeyboardButton(text="🧭 К очереди заявок", callback_data="admin:queue:all")],
+            [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="menu:home")],
+        ]
+    )
+
+
+def master_schedule_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔄 Обновить расписание", callback_data="master:my_schedule")],
+            [InlineKeyboardButton(text="🔧 Мои работы", callback_data="menu:my_jobs")],
+            [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="menu:home")],
+        ]
+    )

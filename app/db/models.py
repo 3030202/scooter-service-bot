@@ -128,14 +128,16 @@ class CalendarSlot(Base):
     __tablename__ = "calendar_slots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), index=True)
+    ticket_id: Mapped[int | None] = mapped_column(ForeignKey("tickets.id"), nullable=True, index=True)
     master_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     ends_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     status: Mapped[CalendarSlotStatus] = mapped_column(Enum(CalendarSlotStatus), default=CalendarSlotStatus.RESERVED, index=True)
+    note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    ticket: Mapped["Ticket"] = relationship(back_populates="calendar_slots")
+    ticket: Mapped["Ticket | None"] = relationship(back_populates="calendar_slots")
+    master: Mapped["User | None"] = relationship(foreign_keys=[master_id])
 
 
 class ClientProfile(Base):

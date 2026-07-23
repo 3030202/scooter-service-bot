@@ -123,3 +123,85 @@ async def reserve_next_slot(session: AsyncSession, ticket_id: int, master_id: in
         raise RuntimeError(f"No free calendar slots for next {settings.slot_search_days} days")
     starts_at, ends_at = free[0]
     return await reserve_slot(session, ticket_id, starts_at, ends_at, master_id)
+
+
+async def get_master_daily_workload(session: AsyncSession, master_id: int | None, target_date: datetime.date | None = None) -> dict:
+    if target_date is None:
+        target_date = datetime.now(service_tz()).date()
+
+    tz = service_tz()
+    start_dt = to_utc_naive(datetime.combine(target_date, time(0, 0), tz))
+    end_dt = to_utc_naive(datetime.combine(target_date, time(23, 59, 59), tz))
+
+    query = select(CalendarSlot).where(
+        CalendarSlot.starts_at >= start_dt,
+        CalendarSlot.ends_at <= end_dt,
+        CalendarSlot.status.in_([CalendarSlotStatus.RESERVED, CalendarSlotStatus.BUSY, CalendarSlotStatus.DONE]),
+    )
+    if master_id is not None:
+        query = query.where(CalendarSlot.master_id == master_id)
+
+    slots = (await session.scalars(query)).all()
+    total_minutes = sum((slot.ends_at - slot.starts_at).total_seconds() / 60.0 for slot in slots)
+    workday_hours = (settings.workday_end_hour - settings.workday_start_hour)
+    workday_minutes = max(workday_hours * 60.0, 1.0)
+    percent = min(100, int((total_minutes / workday_minutes) * 100))
+
+    return {
+        "master_id": master_id,
+        "date": target_date,
+        "total_hours": round(total_minutes / 60.0, 1),
+        "capacity_percent": percent,
+        "slots_count": len(slots),
+        "slots": slots,
+    }
+
+
+async def recommend_smart_slot(session: AsyncSession, duration_minutes: int = 120) -> tuple[int | None, datetime, datetime]:
+    free_candidates = await list_free_slots(session, limit=5)
+    if not free_candidates:
+        raise RuntimeError("No free slots available")
+
+    starts_at, ends_at = free_candidates[0]
+    return None, starts_at, ends_at
+
+
+async def block_master_slot(
+    session: AsyncSession,
+    master_id: int,
+    starts_at: datetime,
+    ends_at: datetime,
+    reason: str = "Административный перерыв",
+) -> CalendarSlot:
+    if await is_slot_busy(session, starts_at, ends_at, master_id):
+        raise RuntimeError("Slot is already busy")
+
+    slot = CalendarSlot(
+        ticket_id=None,
+        master_id=master_id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        status=CalendarSlotStatus.BUSY,
+        note=reason,
+    )
+    session.add(slot)
+    await session.flush()
+    return slot
+
+
+def render_master_workload_card(masters_workload: list[dict]) -> str:
+    lines = ["📅 ЗАГРУЗКА МАСТЕРСКОЙ", ""]
+    for wl in masters_workload:
+        master_name = wl.get("master_name", f"Мастер #{wl.get('master_id')}")
+        percent = wl.get("capacity_percent", 0)
+        hours = wl.get("total_hours", 0.0)
+
+        filled = int(percent / 10)
+        empty = 10 - filled
+        bar = "🟩" * filled + "⬜" * empty
+
+        lines.append(f"👤 {master_name}:")
+        lines.append(f"  {bar} {percent}% ({hours} ч / {wl.get('slots_count', 0)} слотов)")
+        lines.append("")
+
+    return "\n".join(lines)
