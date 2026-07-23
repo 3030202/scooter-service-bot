@@ -23,7 +23,7 @@ This roadmap documents the strategic improvement vectors identified during archi
   - Async integration tests using `pytest-asyncio` and `aiosqlite`/in-memory database.
   - Handler lifecycle testing (`draft` ➔ `waiting_photos` ➔ `ai_analysis` ➔ `diagnosed` ➔ `assigned` ➔ `done`).
   - Mocked Telegram API interactions for `Client` and `Master` routers.
-- **Status**: Implemented with 20 passing integration test cases.
+- **Status**: Implemented with 26 passing E2E integration test cases.
 
 ---
 
