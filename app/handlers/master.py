@@ -24,7 +24,10 @@ from app.keyboards.inline import (
     master_stage_keyboard,
     admin_schedule_keyboard,
     master_schedule_keyboard,
+    admin_ai_providers_keyboard,
 )
+from app.db.models import AIModel, AIProvider, CalendarSlot, CalendarSlotStatus, RepairJournalEntry, RepairStage, Ticket, TicketStatus, TicketServiceItem, User, UserRole
+from app.services.ai_provider_service import sync_provider_models
 from app.services.calendar import format_slot, get_master_daily_workload, list_free_slots, render_master_workload_card, reserve_slot
 from app.services.metrics import metrics
 from app.services.catalog import attach_catalog_item, list_catalog, match_catalog, recompute_ticket_price, seed_catalog
@@ -866,3 +869,53 @@ async def handle_master_my_schedule(callback: CallbackQuery) -> None:
     if callback.message:
         await callback.message.edit_text("\n".join(lines), reply_markup=master_schedule_keyboard())
     await callback.answer()
+
+
+@router.callback_query(F.data == "admin:ai_providers")
+async def handle_admin_ai_providers(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Только для администраторов", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as session:
+        providers = (await session.scalars(select(AIProvider))).all()
+
+    lines = [
+        "🤖 УПРАВЛЕНИЕ ИИ-ПРОВАЙДЕРАМИ",
+        "",
+        "В системе зарегистрированы следующие OpenAI-совместимые сервисы:",
+        "",
+    ]
+    if providers:
+        for prov in providers:
+            default_tag = " [АКТИВЕН ПО УМОЛЧАНИЮ]" if prov.is_default else ""
+            lines.append(f"• {prov.name} ({prov.base_url}){default_tag}")
+    else:
+        lines.append("Кастомные провайдеры в БД не найдены. Используются дефолтные настройки из .env.")
+
+    lines.extend([
+        "",
+        "💡 Для добавления нового провайдера используйте REST API:",
+        "  POST /api/ai/providers",
+        "  Body: {\"name\": \"DeepSeek\", \"base_url\": \"https://api.deepseek.com/v1\", \"api_key\": \"...\", \"set_as_default\": true}",
+    ])
+
+    if callback.message:
+        await callback.message.edit_text("\n".join(lines), reply_markup=admin_ai_providers_keyboard(providers))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin:ai_sync:"))
+async def handle_admin_ai_sync(callback: CallbackQuery) -> None:
+    if not is_admin(callback.from_user.id):
+        await callback.answer("Только для администраторов", show_alert=True)
+        return
+
+    provider_id = int(callback.data.split(":")[2])
+    async with AsyncSessionLocal() as session:
+        try:
+            models = await sync_provider_models(session, provider_id)
+            await session.commit()
+            await callback.answer(f"✅ Автоматически загружено {len(models)} моделей с сервера!", show_alert=True)
+        except Exception as exc:
+            await callback.answer(f"❌ Ошибка синхронизации: {exc}", show_alert=True)

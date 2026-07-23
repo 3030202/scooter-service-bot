@@ -203,3 +203,16 @@ def master_schedule_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="⬅️ Главное меню", callback_data="menu:home")],
         ]
     )
+
+
+def admin_ai_providers_keyboard(providers: list) -> InlineKeyboardMarkup:
+    rows = []
+    for prov in providers:
+        default_tag = "⭐ " if prov.is_default else ""
+        models_count = len(prov.models) if hasattr(prov, "models") and prov.models else 0
+        rows.append([
+            InlineKeyboardButton(text=f"{default_tag}{prov.name} ({models_count} мод)", callback_data=f"admin:ai_view:{prov.id}"),
+            InlineKeyboardButton(text="🔄 Обновить", callback_data=f"admin:ai_sync:{prov.id}"),
+        ])
+    rows.append([InlineKeyboardButton(text="⬅️ В меню", callback_data="menu:home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)

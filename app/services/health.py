@@ -61,6 +61,60 @@ async def api_catalog_view(_: web.Request) -> web.Response:
         return web.json_response(data)
 
 
+async def api_ai_providers_list_view(_: web.Request) -> web.Response:
+    from sqlalchemy import select
+    from app.db.models import AIModel, AIProvider
+
+    async with AsyncSessionLocal() as session:
+        providers = (await session.scalars(select(AIProvider))).all()
+        result = []
+        for prov in providers:
+            models = (await session.scalars(select(AIModel).where(AIModel.provider_id == prov.id))).all()
+            result.append({
+                "id": prov.id,
+                "name": prov.name,
+                "base_url": prov.base_url,
+                "is_active": prov.is_active,
+                "is_default": prov.is_default,
+                "models_count": len(models),
+                "models": [m.model_name for m in models],
+            })
+        return web.json_response(result)
+
+
+async def api_ai_provider_register_view(request: web.Request) -> web.Response:
+    from app.services.ai_provider_service import register_provider
+
+    try:
+        data = await request.json()
+        name = data.get("name", "Custom AI Provider")
+        base_url = data.get("base_url", "").strip()
+        api_key = data.get("api_key", "").strip()
+        set_as_default = bool(data.get("set_as_default", False))
+
+        if not base_url:
+            return web.json_response({"error": "base_url is required"}, status=400)
+
+        async with AsyncSessionLocal() as session:
+            provider, models = await register_provider(
+                session, name, base_url, api_key, set_as_default=set_as_default, fetch_models=True
+            )
+            await session.commit()
+
+            return web.json_response({
+                "status": "created",
+                "provider_id": provider.id,
+                "name": provider.name,
+                "base_url": provider.base_url,
+                "is_default": provider.is_default,
+                "models_discovered_count": len(models),
+                "models": [m.model_name for m in models],
+            }, status=201)
+
+    except Exception as exc:
+        return web.json_response({"error": str(exc)}, status=500)
+
+
 async def start_health_server() -> web.AppRunner | None:
     if not settings.observability_enabled:
         return None
@@ -71,6 +125,8 @@ async def start_health_server() -> web.AppRunner | None:
     app.router.add_get("/webapp/client", webapp_client_view)
     app.router.add_get("/webapp/master", webapp_master_view)
     app.router.add_get("/api/catalog", api_catalog_view)
+    app.router.add_get("/api/ai/providers", api_ai_providers_list_view)
+    app.router.add_post("/api/ai/providers", api_ai_provider_register_view)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, settings.health_host, settings.health_port)

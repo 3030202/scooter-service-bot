@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db.models import ServiceCatalogItem
+from app.services.ai_provider_service import get_active_ai_service_client
 
 
 class AIDiagnosisResult(BaseModel):
@@ -30,12 +31,14 @@ class AIDiagnosisResult(BaseModel):
 
 class AIService:
     def __init__(self) -> None:
-        self.client = AsyncOpenAI(api_key=settings.ai_api_key, base_url=settings.ai_base_url)
+        self.fallback_client = AsyncOpenAI(api_key=settings.ai_api_key, base_url=settings.ai_base_url)
+        self.client = self.fallback_client
 
-    async def transcribe_voice(self, path: str) -> str:
+    async def transcribe_voice(self, path: str, session: Any = None) -> str:
         try:
+            client, model_name = await get_active_ai_service_client(session)
             with open(path, "rb") as audio:
-                result = await self.client.audio.transcriptions.create(
+                result = await client.audio.transcriptions.create(
                     model=settings.ai_transcribe_model,
                     file=audio,
                 )
@@ -45,7 +48,11 @@ class AIService:
             return ""
 
     async def analyze_ticket(
-        self, description: str, image_paths: list[str], catalog_items: Sequence[ServiceCatalogItem] | None = None
+        self,
+        description: str,
+        image_paths: list[str],
+        catalog_items: Sequence[ServiceCatalogItem] | None = None,
+        session: Any = None,
     ) -> AIDiagnosisResult:
         images = []
         for path in image_paths:
@@ -90,14 +97,19 @@ class AIService:
 {description}
 """.strip()
 
+        if session is not None:
+            client, model_name = await get_active_ai_service_client(session)
+        else:
+            client, model_name = self.client, settings.ai_text_model
+
         # Retry loop with exponential backoff (up to 3 attempts)
         max_attempts = 3
         delay = 1.0
 
         for attempt in range(1, max_attempts + 1):
             try:
-                response = await self.client.chat.completions.create(
-                    model=settings.ai_text_model,
+                response = await client.chat.completions.create(
+                    model=model_name,
                     messages=[
                         {
                             "role": "system",

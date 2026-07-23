@@ -101,3 +101,13 @@ This roadmap documents the strategic improvement vectors identified during archi
   - Branch selection for clients based on geolocation or city district.
   - Branch-isolated ticket queues, master whitelists, and catalog pricing tiers.
   - Multi-tenant admin dashboard.
+
+---
+
+### 11. 🤖 Variant 11: Custom OpenAI-Compatible Providers & Dynamic Auto-Discovery
+- **Goal**: Register custom LLM endpoints (DeepSeek, Groq, OpenRouter, Local Ollama/vLLM) and auto-discover models from `/v1/models`.
+- **Key Features**:
+  - Auto-discovery of remote models list via OpenAI SDK `client.models.list()`.
+  - Database persistence (`ai_providers` & `ai_models`).
+  - REST API (`GET/POST /api/ai/providers`) & Telegram Admin Dashboard (`admin:ai_providers`).
+- **Status**: Implemented in Release 1.9.
