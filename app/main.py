@@ -10,6 +10,7 @@ from app.logging import setup_logging
 from app.middlewares import ErrorMiddleware, RateLimitMiddleware
 from app.services.health import start_health_server, stop_health_server
 from app.services.metrics import metrics
+from app.services.retention import start_retention_scheduler
 
 
 async def run_migrations() -> None:
@@ -53,11 +54,18 @@ async def main() -> None:
     dp.include_router(master.router)
     dp.include_router(client.router)
 
+    retention_task = start_retention_scheduler(bot)
+
     await bot.delete_webhook(drop_pending_updates=True)
     metrics.inc("starts_total")
     try:
         await dp.start_polling(bot)
     finally:
+        retention_task.cancel()
+        try:
+            await retention_task
+        except asyncio.CancelledError:
+            pass
         await bot.session.close()
         await storage.close()
         await stop_health_server(health_runner)

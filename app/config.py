@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     health_host: str = "0.0.0.0"
     health_port: int = 8080
 
+    retention_auto_send_enabled: bool = True
+    retention_check_interval_seconds: int = 60
+    retention_batch_size: int = 20
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @field_validator("master_telegram_ids", "admin_telegram_ids", "workday_numbers", mode="before")
