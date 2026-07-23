@@ -60,6 +60,10 @@ def client_final_offer_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
 def client_ticket_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📍 Live-трекинг", callback_data=f"client:track:{ticket_id}"),
+                InlineKeyboardButton(text="🚚 Способ получения", callback_data=f"client:pickup_menu:{ticket_id}"),
+            ],
             [InlineKeyboardButton(text="❌ Отменить", callback_data=f"client:cancel:{ticket_id}")],
             [InlineKeyboardButton(text="⬅️ В меню", callback_data="menu:home")],
         ]
@@ -75,6 +79,10 @@ def master_ticket_keyboard(ticket_id: int, assigned_to_me: bool = False, is_admi
         ],
         [InlineKeyboardButton(text="🧾 Каталог/прайс", callback_data=f"ticket:catalog:{ticket_id}")],
         [InlineKeyboardButton(text="📱 Интерактивная смета (WebApp)", web_app=WebAppInfo(url=f"{settings.webapp_base_url}/webapp/master"))],
+        [
+            InlineKeyboardButton(text="📍 Сменить этап", callback_data=f"ticket:stage_menu:{ticket_id}"),
+            InlineKeyboardButton(text="📸 Фото этапа", callback_data=f"ticket:journal_photo_start:{ticket_id}"),
+        ],
         [InlineKeyboardButton(text="▶️ Начать работу", callback_data=f"ticket:start_work:{ticket_id}")],
         [InlineKeyboardButton(text="🏁 Готово", callback_data=f"ticket:done:{ticket_id}")],
     ]
@@ -89,6 +97,30 @@ def master_ticket_keyboard(ticket_id: int, assigned_to_me: bool = False, is_admi
     else:
         rows.append([InlineKeyboardButton(text="🔧 Мои работы", callback_data="menu:my_jobs")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def master_stage_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📥 1. Принят в сервис", callback_data=f"ticket:set_stage:{ticket_id}:received")],
+            [InlineKeyboardButton(text="🔍 2. Диагностика", callback_data=f"ticket:set_stage:{ticket_id}:diagnostics")],
+            [InlineKeyboardButton(text="📦 3. Заказ запчастей", callback_data=f"ticket:set_stage:{ticket_id}:parts_ordering")],
+            [InlineKeyboardButton(text="🔧 4. Сборка / Пайка", callback_data=f"ticket:set_stage:{ticket_id}:assembly")],
+            [InlineKeyboardButton(text="⚡ 5. Тестирование", callback_data=f"ticket:set_stage:{ticket_id}:testing")],
+            [InlineKeyboardButton(text="🏁 6. Готов к выдаче", callback_data=f"ticket:set_stage:{ticket_id}:ready")],
+            [InlineKeyboardButton(text="⬅️ К заявке", callback_data=f"admin:view:{ticket_id}")],
+        ]
+    )
+
+
+def client_pickup_keyboard(ticket_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🚶 Самовывоз из сервиса", callback_data=f"client:pickup:{ticket_id}:self_pickup")],
+            [InlineKeyboardButton(text="🚚 Доставка курьером", callback_data=f"client:pickup:{ticket_id}:courier")],
+            [InlineKeyboardButton(text="⬅️ К заявке", callback_data="menu:my_orders")],
+        ]
+    )
 
 
 def admin_queue_keyboard(ticket_ids: list[int], filter_name: str = "all") -> InlineKeyboardMarkup:

@@ -1,7 +1,7 @@
 from decimal import Decimal
 from typing import Any
 
-from app.db.models import Ticket, TicketStatus, User
+from app.db.models import RepairJournalEntry, RepairStage, Ticket, TicketStatus, User
 
 STATUS_LABELS = {
     TicketStatus.DRAFT: "черновик",
@@ -18,6 +18,24 @@ STATUS_LABELS = {
     TicketStatus.DONE: "готово",
     TicketStatus.CANCELLED: "отменена",
 }
+
+STAGE_LABELS = {
+    RepairStage.RECEIVED: "Принят в сервис",
+    RepairStage.DIAGNOSTICS: "Диагностика",
+    RepairStage.PARTS_ORDERING: "Заказ запчастей",
+    RepairStage.ASSEMBLY: "Сборка / Пайка",
+    RepairStage.TESTING: "Тестирование",
+    RepairStage.READY: "Готов к выдаче",
+}
+
+STAGE_ORDER = [
+    RepairStage.RECEIVED,
+    RepairStage.DIAGNOSTICS,
+    RepairStage.PARTS_ORDERING,
+    RepairStage.ASSEMBLY,
+    RepairStage.TESTING,
+    RepairStage.READY,
+]
 
 
 def format_price(value: Any) -> str:
@@ -104,3 +122,58 @@ def parse_price_eta(text: str) -> tuple[Decimal, str]:
     if price <= 0:
         raise ValueError("price")
     return price, eta.strip() or "после диагностики"
+
+
+def render_live_progress_bar(current_stage: RepairStage | str) -> str:
+    current_val = current_stage.value if hasattr(current_stage, "value") else str(current_stage)
+
+    stage_icons = {
+        RepairStage.RECEIVED.value: "Приемка",
+        RepairStage.DIAGNOSTICS.value: "Диагностика",
+        RepairStage.PARTS_ORDERING.value: "Запчасти",
+        RepairStage.ASSEMBLY.value: "Сборка",
+        RepairStage.TESTING.value: "Тесты",
+        RepairStage.READY.value: "Выдача",
+    }
+
+    try:
+        current_idx = [s.value for s in STAGE_ORDER].index(current_val)
+    except ValueError:
+        current_idx = 0
+
+    parts = []
+    for idx, stage in enumerate(STAGE_ORDER):
+        label = stage_icons.get(stage.value, stage.value)
+        if idx < current_idx:
+            parts.append(f"🟩 {label}")
+        elif idx == current_idx:
+            parts.append(f"🟨 {label}")
+        else:
+            parts.append(f"⬜ {label}")
+
+    return " ➔ ".join(parts)
+
+
+def build_live_ticket_card(ticket: Ticket, journal_entries: list[RepairJournalEntry] | None = None) -> str:
+    stage = ticket.repair_stage or RepairStage.RECEIVED
+    progress_bar = render_live_progress_bar(stage)
+    pickup = "Самовывоз" if (ticket.pickup_method or "self_pickup") == "self_pickup" else "Доставка курьером"
+
+    lines = [
+        f"📍 LIVE-ТРЕКИНГ ЗАЯВКИ #{ticket.id}",
+        f"Текущий этап: {STAGE_LABELS.get(stage, stage.value)}",
+        "",
+        progress_bar,
+        "",
+        f"Способ получения: {pickup}",
+        f"Финальная цена: {final_price_text(ticket)}",
+    ]
+
+    if journal_entries:
+        lines.extend(["", "📸 Дневник работ мастера:"])
+        for entry in journal_entries:
+            dt_str = entry.created_at.strftime("%d.%m %H:%M") if entry.created_at else ""
+            comment_str = f" — {entry.comment}" if entry.comment else ""
+            lines.append(f"• [{dt_str}] {STAGE_LABELS.get(entry.stage, entry.stage.value)}{comment_str}")
+
+    return "\n".join(lines)

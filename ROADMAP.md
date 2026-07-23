@@ -61,6 +61,7 @@ This roadmap documents the strategic improvement vectors identified during archi
   - Live progress bar: `Принято` ➔ `Диагностика` ➔ `Заказ запчастей` ➔ `Сборка` ➔ `Готов к выдаче`.
   - Master photo journal: 1-click attachment of repair progress photos (before vs after).
   - Choice of pickup method: Self-pickup vs Courier delivery.
+- **Status**: Implemented in Release 1.6.1.
 
 ---
 

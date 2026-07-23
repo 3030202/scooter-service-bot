@@ -41,6 +41,15 @@ class CalendarSlotStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
+class RepairStage(str, enum.Enum):
+    RECEIVED = "received"
+    DIAGNOSTICS = "diagnostics"
+    PARTS_ORDERING = "parts_ordering"
+    ASSEMBLY = "assembly"
+    TESTING = "testing"
+    READY = "ready"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -76,6 +85,9 @@ class Ticket(Base):
     final_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
     final_eta: Mapped[str | None] = mapped_column(String(255))
 
+    repair_stage: Mapped[RepairStage] = mapped_column(Enum(RepairStage), default=RepairStage.RECEIVED, index=True)
+    pickup_method: Mapped[str | None] = mapped_column(String(50), default="self_pickup")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -83,6 +95,7 @@ class Ticket(Base):
     media: Mapped[list["Media"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
     calendar_slots: Mapped[list["CalendarSlot"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
     service_items: Mapped[list["TicketServiceItem"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
+    journal_entries: Mapped[list["RepairJournalEntry"]] = relationship(back_populates="ticket", cascade="all, delete-orphan")
 
 
 class Media(Base):
@@ -176,3 +189,16 @@ class RetentionReminder(Base):
     message: Mapped[str] = mapped_column(Text)
     is_sent: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class RepairJournalEntry(Base):
+    __tablename__ = "repair_journal_entries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id"), index=True)
+    stage: Mapped[RepairStage] = mapped_column(Enum(RepairStage), default=RepairStage.RECEIVED, index=True)
+    comment: Mapped[str | None] = mapped_column(Text)
+    photo_file_id: Mapped[str | None] = mapped_column(String(512))
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    ticket: Mapped["Ticket"] = relationship(back_populates="journal_entries")

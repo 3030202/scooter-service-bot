@@ -8,7 +8,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy import desc, func, select
 
 from app.config import settings
-from app.db.models import CalendarSlot, CalendarSlotStatus, Ticket, TicketStatus, User, UserRole
+from app.db.models import CalendarSlot, CalendarSlotStatus, RepairJournalEntry, RepairStage, Ticket, TicketStatus, TicketServiceItem, User, UserRole
 from app.db.session import AsyncSessionLocal
 from app.keyboards.inline import (
     admin_assign_keyboard,
@@ -21,12 +21,13 @@ from app.keyboards.inline import (
     admin_catalog_keyboard,
     retention_keyboard,
     master_ticket_keyboard,
+    master_stage_keyboard,
 )
 from app.services.calendar import format_slot, list_free_slots, reserve_slot
 from app.services.metrics import metrics
 from app.services.catalog import attach_catalog_item, list_catalog, match_catalog, recompute_ticket_price, seed_catalog
 from app.services.crm import client_summary, create_retention_after_done, due_retention_items, update_profile_after_ticket_done
-from app.services.tickets import build_final_offer, build_ticket_card, parse_price_eta, status_label
+from app.services.tickets import STAGE_LABELS, build_final_offer, build_ticket_card, parse_price_eta, render_live_progress_bar, status_label
 
 router = Router()
 
@@ -48,6 +49,10 @@ QUEUE_FILTERS = {
 
 class MasterFSM(StatesGroup):
     waiting_offer = State()
+
+
+class MasterJournalFSM(StatesGroup):
+    waiting_photo = State()
 
 
 def is_authorized_master(telegram_id: int) -> bool:
@@ -679,3 +684,131 @@ async def handle_master_webapp_data(message: Message, bot: Bot, state: FSMContex
             f"✅ Смета из WebApp ({total_price} RUB) успешно сформирована и отправлена клиенту по заявке #{ticket_id}.",
             reply_markup=master_ticket_keyboard(ticket_id, assigned_to_me=True, is_admin=is_admin(message.from_user.id)),
         )
+
+
+@router.callback_query(F.data.startswith("ticket:stage_menu:"))
+async def handle_master_stage_menu(callback: CallbackQuery) -> None:
+    if not is_authorized_master(callback.from_user.id):
+        await callback.answer("У вас нет прав мастера", show_alert=True)
+        return
+    ticket_id = int(callback.data.split(":")[2])
+    if callback.message:
+        await callback.message.edit_text(
+            f"📍 Выберите текущий этап ремонта для заявки #{ticket_id}:",
+            reply_markup=master_stage_keyboard(ticket_id),
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("ticket:set_stage:"))
+async def handle_master_set_stage(callback: CallbackQuery, bot: Bot) -> None:
+    if not is_authorized_master(callback.from_user.id):
+        await callback.answer("У вас нет прав мастера", show_alert=True)
+        return
+    parts = callback.data.split(":")
+    ticket_id = int(parts[2])
+    stage_str = parts[3]
+
+    try:
+        new_stage = RepairStage(stage_str)
+    except ValueError:
+        await callback.answer("Неизвестный этап", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if not ticket:
+            await callback.answer("Заявка не найдена", show_alert=True)
+            return
+
+        ticket.repair_stage = new_stage
+        entry = RepairJournalEntry(
+            ticket_id=ticket.id,
+            stage=new_stage,
+            comment=f"Этап изменен на '{STAGE_LABELS.get(new_stage, new_stage.value)}'",
+        )
+        session.add(entry)
+        client = await session.get(User, ticket.client_id)
+        await session.commit()
+
+    if client:
+        progress_text = render_live_progress_bar(new_stage)
+        stage_title = STAGE_LABELS.get(new_stage, new_stage.value)
+        try:
+            await bot.send_message(
+                client.telegram_id,
+                f"📍 Обновление по заявке #{ticket_id}:\n"
+                f"Новый этап: {stage_title}\n\n"
+                f"{progress_text}",
+            )
+        except Exception:
+            pass
+
+    if callback.message:
+        await callback.message.edit_text(
+            f"✅ Этап заявки #{ticket_id} изменен на '{STAGE_LABELS.get(new_stage, new_stage.value)}'. Клиент уведомлен.",
+            reply_markup=master_ticket_keyboard(ticket_id, assigned_to_me=True, is_admin=is_admin(callback.from_user.id)),
+        )
+    await callback.answer("Этап сохранен")
+
+
+@router.callback_query(F.data.startswith("ticket:journal_photo_start:"))
+async def handle_journal_photo_start(callback: CallbackQuery, state: FSMContext) -> None:
+    if not is_authorized_master(callback.from_user.id):
+        await callback.answer("У вас нет прав мастера", show_alert=True)
+        return
+    ticket_id = int(callback.data.split(":")[2])
+    await state.set_state(MasterJournalFSM.waiting_photo)
+    await state.update_data(journal_ticket_id=ticket_id)
+    if callback.message:
+        await callback.message.answer(
+            f"📸 Отправьте фото этапа работ по заявке #{ticket_id} (можно с комментарием в подписи к фото)."
+        )
+    await callback.answer()
+
+
+@router.message(MasterJournalFSM.waiting_photo, F.photo)
+async def handle_journal_photo_upload(message: Message, state: FSMContext, bot: Bot) -> None:
+    if not is_authorized_master(message.from_user.id):
+        return
+    data = await state.get_data()
+    ticket_id = data.get("journal_ticket_id")
+    if not ticket_id:
+        await state.clear()
+        return
+
+    photo = message.photo[-1]
+    comment = message.caption or "Фотоотчет от мастера"
+
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if not ticket:
+            await message.answer("Заявка не найдена")
+            await state.clear()
+            return
+
+        entry = RepairJournalEntry(
+            ticket_id=ticket.id,
+            stage=ticket.repair_stage,
+            comment=comment,
+            photo_file_id=photo.file_id,
+        )
+        session.add(entry)
+        client = await session.get(User, ticket.client_id)
+        await session.commit()
+
+    if client:
+        try:
+            await bot.send_photo(
+                client.telegram_id,
+                photo=photo.file_id,
+                caption=f"📸 Обновление из мастерской по заявке #{ticket_id}:\n{comment}\n\n{render_live_progress_bar(ticket.repair_stage)}",
+            )
+        except Exception:
+            pass
+
+    await state.clear()
+    await message.answer(
+        f"✅ Фото этапа успешно сохранено в дневнике работ и отправлено клиенту по заявке #{ticket_id}.",
+        reply_markup=master_ticket_keyboard(ticket_id, assigned_to_me=True, is_admin=is_admin(message.from_user.id)),
+    )

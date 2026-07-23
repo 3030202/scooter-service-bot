@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy import desc, select
 
 from app.config import settings
-from app.db.models import CalendarSlot, Media, MediaType, Ticket, TicketStatus, User, UserRole
+from app.db.models import CalendarSlot, Media, MediaType, RepairJournalEntry, Ticket, TicketStatus, User, UserRole
 from app.db.session import AsyncSessionLocal
 from app.keyboards.inline import (
     back_to_menu_keyboard,
@@ -18,6 +18,7 @@ from app.keyboards.inline import (
     client_final_offer_keyboard,
     client_ticket_keyboard,
     client_done_keyboard,
+    client_pickup_keyboard,
     contact_keyboard,
     main_menu_keyboard,
     master_ticket_keyboard,
@@ -27,7 +28,7 @@ from app.services.calendar import format_slot, reserve_next_slot
 from app.services.media_group import MediaGroupCollector
 from app.services.metrics import metrics
 from app.services.storage import media_storage
-from app.services.tickets import build_client_preview, build_final_offer, build_ticket_card, status_label
+from app.services.tickets import build_client_preview, build_final_offer, build_live_ticket_card, build_ticket_card, status_label
 
 router = Router()
 ai_service = AIService()
@@ -459,3 +460,57 @@ async def handle_client_webapp_data(message: Message, state: FSMContext) -> None
             f"Отправьте фотографии самоката для проведения AI-анализа.",
             reply_markup=client_ticket_keyboard(ticket_id)
         )
+
+
+@router.callback_query(F.data.startswith("client:track:"))
+async def handle_client_track_ticket(callback: CallbackQuery) -> None:
+    ticket_id = int(callback.data.split(":")[2])
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if not ticket:
+            await callback.answer("Заявка не найдена", show_alert=True)
+            return
+
+        journal_entries = (await session.scalars(
+            select(RepairJournalEntry)
+            .where(RepairJournalEntry.ticket_id == ticket_id)
+            .order_by(RepairJournalEntry.created_at.asc())
+        )).all()
+
+        card_text = build_live_ticket_card(ticket, journal_entries)
+
+    if callback.message:
+        await callback.message.edit_text(card_text, reply_markup=client_ticket_keyboard(ticket_id))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("client:pickup_menu:"))
+async def handle_client_pickup_menu(callback: CallbackQuery) -> None:
+    ticket_id = int(callback.data.split(":")[2])
+    if callback.message:
+        await callback.message.edit_text(
+            f"🚚 Выберите предпочтительный способ получения самоката по заявке #{ticket_id}:",
+            reply_markup=client_pickup_keyboard(ticket_id),
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("client:pickup:"))
+async def handle_client_set_pickup(callback: CallbackQuery) -> None:
+    parts = callback.data.split(":")
+    ticket_id = int(parts[2])
+    method = parts[3]
+
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if ticket:
+            ticket.pickup_method = method
+            await session.commit()
+
+    method_title = "🚶 Самовывоз из сервиса" if method == "self_pickup" else "🚚 Доставка курьером"
+    if callback.message:
+        await callback.message.edit_text(
+            f"✅ Способ получения по заявке #{ticket_id} успешно сохранен: {method_title}.",
+            reply_markup=client_ticket_keyboard(ticket_id),
+        )
+    await callback.answer("Способ получения сохранен")
