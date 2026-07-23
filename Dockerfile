@@ -21,7 +21,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/install/bin:$PATH" \
-    PYTHONPATH="/install/lib/python3.11/site-packages:$PYTHONPATH"
+    PYTHONPATH="/install/lib/python3.11/site-packages"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libpq5 curl \

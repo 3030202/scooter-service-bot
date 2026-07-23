@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Configuration & Secrets
+.env
+
+# Storage & Cache
+storage/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / Editor junk
+*:Zone.Identifier
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
