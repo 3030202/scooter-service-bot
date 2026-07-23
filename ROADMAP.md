@@ -1,12 +1,12 @@
 # Scooter Service Bot — Product & Technical Roadmap
 
-This roadmap documents the 5 strategic improvement vectors identified during architectural analysis.
+This roadmap documents the strategic improvement vectors identified during architectural and business analysis.
 
 ---
 
 ## 🗺️ Improvement Vectors
 
-### 1. 🔔 Variant 1: Automated Retention Scheduler & Push Dispatcher (In Progress)
+### 1. 🔔 Variant 1: Automated Retention Scheduler & Push Dispatcher
 - **Goal**: Automatically send due retention messages (`retention_reminders`) to clients without requiring manual admin triggers.
 - **Key Features**:
   - Background `asyncio` task checking for due unsent reminders (`due_at <= now()`).
@@ -23,6 +23,7 @@ This roadmap documents the 5 strategic improvement vectors identified during arc
   - Async integration tests using `pytest-asyncio` and `aiosqlite`/in-memory database.
   - Handler lifecycle testing (`draft` ➔ `waiting_photos` ➔ `ai_analysis` ➔ `diagnosed` ➔ `assigned` ➔ `done`).
   - Mocked Telegram API interactions for `Client` and `Master` routers.
+- **Status**: Implemented with 20 passing integration test cases.
 
 ---
 
@@ -51,3 +52,49 @@ This roadmap documents the 5 strategic improvement vectors identified during arc
   - Integration with Telegram Payments API (Yookassa / Telegram Stars / Tinkoff Pay).
   - Invoice generation upon client approval of ticket final price.
   - Automatic status transition to `in_progress` upon verified payment webhook.
+
+---
+
+### 6. 📸 Variant 6: Live Status Tracking & Master Repair Photo-Journal
+- **Goal**: Provide real-time repair stage tracking and photo updates for clients.
+- **Key Features**:
+  - Live progress bar: `Принято` ➔ `Диагностика` ➔ `Заказ запчастей` ➔ `Сборка` ➔ `Готов к выдаче`.
+  - Master photo journal: 1-click attachment of repair progress photos (before vs after).
+  - Choice of pickup method: Self-pickup vs Courier delivery.
+
+---
+
+### 7. 📦 Variant 7: Warehouse Inventory Management & Low-Stock Alerts
+- **Goal**: Track spare part stock levels and calculate repair profit margins.
+- **Key Features**:
+  - Inventory table (`inventory_items`) tracking stock counts, reorder thresholds, and wholesale costs.
+  - Automatic deduction of stock when master adds items to ticket estimate.
+  - Automated low-stock alert notifications to admins when items drop below threshold.
+  - Auto-calculation of repair margin (Total Price - Spare Part Cost).
+
+---
+
+### 8. 📅 Variant 8: Interactive Master Workload & Schedule Calendar Manager
+- **Goal**: Visualize master availability and optimize slot scheduling without double-booking.
+- **Key Features**:
+  - Interactive WebApp calendar grid showing hourly/daily load per master.
+  - Smart master assignment based on current workload and catalog item duration (`default_eta`).
+  - Emergency slot blocking (e.g. master sick leave or holiday).
+
+---
+
+### 9. 📊 Variant 9: Business Analytics, Financial Reports & CRM Integration
+- **Goal**: Export financial and operational metrics for business owners.
+- **Key Features**:
+  - `/export_stats` command generating Excel/PDF summary reports.
+  - Revenue by category, top frequent faults, customer LTV, and master performance.
+  - Webhook integration with external CRM/ERP platforms (Moysklad / 1C / Bitrix24).
+
+---
+
+### 10. 🔒 Variant 10: Multi-Branch & Franchise Support
+- **Goal**: Support multiple service center locations and franchise branches within a single bot instance.
+- **Key Features**:
+  - Branch selection for clients based on geolocation or city district.
+  - Branch-isolated ticket queues, master whitelists, and catalog pricing tiers.
+  - Multi-tenant admin dashboard.
