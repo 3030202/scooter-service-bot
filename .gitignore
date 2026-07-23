@@ -25,3 +25,9 @@ htmlcov/
 Thumbs.db
 .vscode/
 .idea/
+
+# Archives
+*.tar.gz
+*.zip
+*.tgz
+
