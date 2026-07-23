@@ -606,3 +606,76 @@ async def receive_manual_offer(message: Message, bot: Bot, state: FSMContext) ->
         f"Финальная цена отправлена клиенту по заявке #{ticket.id}.",
         reply_markup=master_ticket_keyboard(ticket.id, assigned_to_me=True, is_admin=is_admin(message.from_user.id)),
     )
+
+
+@router.message(F.web_app_data)
+async def handle_master_webapp_data(message: Message, bot: Bot, state: FSMContext) -> None:
+    import json
+    from app.db.models import TicketServiceItem
+    from app.handlers.client import send_final_offer_to_client
+
+    if not message.from_user or not is_authorized_master(message.from_user.id) or not message.web_app_data:
+        return
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        await message.answer("Не удалось распарсить данные сметы WebApp.")
+        return
+
+    if data.get("action") == "master_webapp_quote":
+        state_data = await state.get_data()
+        ticket_id = state_data.get("ticket_id")
+        items = data.get("items", [])
+        total_price = Decimal(str(data.get("total_price", 0)))
+        eta = data.get("eta", "1-2 дня")
+
+        if not items or total_price <= 0:
+            await message.answer("Смета пуста или имеет нулевую сумму.")
+            return
+
+        async with AsyncSessionLocal() as session:
+            if not ticket_id:
+                ticket = await session.scalar(
+                    select(Ticket).where(Ticket.status.in_([TicketStatus.NEW, TicketStatus.ASSIGNED])).order_by(desc(Ticket.id))
+                )
+                if not ticket:
+                    await message.answer("Активная заявка для привязки сметы не найдена.")
+                    return
+                ticket_id = ticket.id
+            else:
+                ticket = await session.get(Ticket, ticket_id)
+
+            if not ticket:
+                await message.answer("Заявка не найдена.")
+                return
+
+            master = await get_or_create_staff_user(message, session)
+            ticket.master_id = ticket.master_id or master.id
+            ticket.final_price = total_price
+            ticket.final_eta = eta
+            ticket.status = TicketStatus.PRICE_OFFERED
+
+            for item_data in items:
+                title = item_data.get("title", "Работа/деталь")
+                price = Decimal(str(item_data.get("price", 0)))
+                qty = int(item_data.get("qty", 1))
+                line_item = TicketServiceItem(
+                    ticket_id=ticket.id,
+                    title=title,
+                    price=price,
+                    qty=qty,
+                    source="webapp"
+                )
+                session.add(line_item)
+
+            client = await session.get(User, ticket.client_id)
+            await session.commit()
+
+        metrics.inc("offers_sent_total")
+        await state.clear()
+        if client:
+            await send_final_offer_to_client(bot, ticket, client)
+        await message.answer(
+            f"✅ Смета из WebApp ({total_price} RUB) успешно сформирована и отправлена клиенту по заявке #{ticket_id}.",
+            reply_markup=master_ticket_keyboard(ticket_id, assigned_to_me=True, is_admin=is_admin(message.from_user.id)),
+        )

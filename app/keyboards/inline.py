@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
 
+from app.config import settings
 from app.db.models import TicketStatus
 from app.services.calendar import format_slot, to_service_time
 
@@ -17,6 +18,7 @@ def contact_keyboard() -> ReplyKeyboardMarkup:
 def main_menu_keyboard(is_master: bool = False, is_admin: bool = False) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text="🛴 Новая заявка", callback_data="menu:new_ticket")],
+        [InlineKeyboardButton(text="📲 Визуальный выбор поломки (WebApp)", web_app=WebAppInfo(url=f"{settings.webapp_base_url}/webapp/client"))],
         [InlineKeyboardButton(text="📋 Мои заявки", callback_data="menu:my_orders")],
     ]
     if is_master or is_admin:
@@ -72,6 +74,7 @@ def master_ticket_keyboard(ticket_id: int, assigned_to_me: bool = False, is_admi
             InlineKeyboardButton(text="✏️ Цена/срок", callback_data=f"ticket:edit_offer:{ticket_id}"),
         ],
         [InlineKeyboardButton(text="🧾 Каталог/прайс", callback_data=f"ticket:catalog:{ticket_id}")],
+        [InlineKeyboardButton(text="📱 Интерактивная смета (WebApp)", web_app=WebAppInfo(url=f"{settings.webapp_base_url}/webapp/master"))],
         [InlineKeyboardButton(text="▶️ Начать работу", callback_data=f"ticket:start_work:{ticket_id}")],
         [InlineKeyboardButton(text="🏁 Готово", callback_data=f"ticket:done:{ticket_id}")],
     ]

@@ -31,6 +31,7 @@ This roadmap documents the 5 strategic improvement vectors identified during arc
 - **Key Features**:
   - **Master WebApp**: Interactive quote/estimate builder with catalog checkboxes, custom spare part inputs, dynamic total recalculation, and calendar date-picker.
   - **Client WebApp**: Visual scooter node picker (battery, controller, motor wheel, brakes) with photo drag-and-drop.
+- **Status**: Implemented in Release 1.5.
 
 ---
 

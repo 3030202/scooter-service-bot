@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Диагностика самоката</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --accent-color: #38bdf8;
+      --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 20px 16px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .section-title {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .node-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(8px);
+    }
+
+    .node-card:active, .node-card.selected {
+      border-color: var(--accent-color);
+      background: rgba(56, 189, 248, 0.15);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .node-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .node-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    textarea, input {
+      width: 100%;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    textarea:focus, input:focus {
+      border-color: var(--accent-color);
+    }
+
+    .submit-btn {
+      margin-top: auto;
+      width: 100%;
+      background: var(--accent-gradient);
+      border: none;
+      border-radius: var(--radius);
+      padding: 16px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+      transition: opacity 0.2s ease;
+    }
+
+    .submit-btn:active {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛴 Диагностика поломки</h1>
+    <p>Выберите проблемный узел электротранспорта</p>
+  </div>
+
+  <div class="section-title">Узел самоката</div>
+  <div class="node-grid">
+    <div class="node-card" onclick="selectNode(this, 'Батарея / BMS', '🔋')">
+      <div class="node-icon">🔋</div>
+      <div class="node-title">Аккумулятор / BMS</div>
+    </div>
+    <div class="node-card" onclick="selectNode(this, 'Контроллер / Электроника', '⚡')">
+      <div class="node-icon">⚡</div>
+      <div class="node-title">Контроллер</div>
+    </div>
+    <div class="node-card" onclick="selectNode(this, 'Мотор-колесо / Покрышка', '🛞')">
+      <div class="node-icon">🛞</div>
+      <div class="node-title">Мотор / Колесо</div>
+    </div>
+    <div class="node-card" onclick="selectNode(this, 'Тормозная система', '🛑')">
+      <div class="node-icon">🛑</div>
+      <div class="node-title">Тормоза</div>
+    </div>
+    <div class="node-card" onclick="selectNode(this, 'Дисплей / Ручка газа', '🖥️')">
+      <div class="node-icon">🖥️</div>
+      <div class="node-title">Дисплей / Газ</div>
+    </div>
+    <div class="node-card" onclick="selectNode(this, 'Плановое ТО / Сборка', '🔧')">
+      <div class="node-icon">🔧</div>
+      <div class="node-title">Плановое ТО</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="details">Подробности поломки / Симптомы</label>
+    <textarea id="details" rows="3" placeholder="Опишите, как проявляется неисправность (например, не включается, люфтит руль, шумит колесо)..."></textarea>
+  </div>
+
+  <button class="submit-btn" onclick="submitData()">Продолжить в боте ➔</button>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.expand();
+      tg.MainButton.text = "ОТПРАВИТЬ ДАННЫЕ В БОТ";
+      tg.MainButton.show();
+      tg.MainButton.onClick(submitData);
+    }
+
+    let selectedNode = "Батарея / BMS";
+
+    function selectNode(element, nodeName, icon) {
+      document.querySelectorAll('.node-card').forEach(c => c.classList.remove('selected'));
+      element.classList.add('selected');
+      selectedNode = nodeName;
+    }
+
+    function submitData() {
+      const details = document.getElementById('details').value.trim();
+      const payload = {
+        action: "client_webapp_select",
+        node: selectedNode,
+        details: details || "Описание не указано"
+      };
+
+      if (tg) {
+        tg.sendData(JSON.stringify(payload));
+      } else {
+        alert("Данные отправлены: " + JSON.stringify(payload));
+      }
+    }
+  </script>
+</body>
+</html>

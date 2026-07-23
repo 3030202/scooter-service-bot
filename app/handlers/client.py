@@ -412,3 +412,40 @@ async def client_ticket_actions(callback: CallbackQuery, bot: Bot) -> None:
 
 async def send_final_offer_to_client(bot: Bot, ticket: Ticket, client: User) -> None:
     await bot.send_message(client.telegram_id, build_final_offer(ticket), reply_markup=client_final_offer_keyboard(ticket.id))
+
+
+@router.message(F.web_app_data)
+async def handle_client_webapp_data(message: Message, state: FSMContext) -> None:
+    if not message.from_user or not message.web_app_data:
+        return
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        await message.answer("Не удалось распарсить данные WebApp.")
+        return
+
+    if data.get("action") == "client_webapp_select":
+        node = data.get("node", "Неизвестный узел")
+        details = data.get("details", "")
+        description = f"[{node}] {details}".strip()
+
+        async with AsyncSessionLocal() as session:
+            user = await get_or_create_user(message, session)
+            ticket = Ticket(
+                client_id=user.id,
+                status=TicketStatus.WAITING_PHOTOS,
+                description=description,
+            )
+            session.add(ticket)
+            await session.flush()
+            await session.commit()
+            ticket_id = ticket.id
+
+        await state.set_state(TicketFSM.waiting_photos)
+        await state.update_data(ticket_id=ticket_id)
+        await message.answer(
+            f"✅ Получены данные WebApp по узлу '{node}'.\n\n"
+            f"Создана заявка #{ticket_id}.\n"
+            f"Отправьте фотографии самоката для проведения AI-анализа.",
+            reply_markup=client_ticket_keyboard(ticket_id)
+        )

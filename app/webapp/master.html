@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Калькулятор сметы</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #090d16;
+      --card-bg: rgba(26, 34, 52, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-color: #10b981;
+      --accent-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 16px;
+      padding-bottom: 90px;
+    }
+
+    .header {
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .catalog-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .item-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(8px);
+    }
+
+    .item-info {
+      flex: 1;
+    }
+
+    .item-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .item-price {
+      font-size: 13px;
+      color: var(--accent-color);
+      font-weight: 600;
+    }
+
+    .qty-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .qty-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .qty-count {
+      font-size: 14px;
+      font-weight: 600;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    .custom-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 20px;
+    }
+
+    .custom-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    input {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .add-custom-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 8px;
+      padding: 10px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .summary-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.95);
+      border-top: 1px solid var(--card-border);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+    }
+
+    .total-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .total-amount {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent-color);
+    }
+
+    .send-btn {
+      background: var(--accent-gradient);
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 20px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🧾 Смета мастера</h1>
+    <p>Выберите работы и детали для формирования расчета</p>
+  </div>
+
+  <div id="catalog-container" class="catalog-list">
+    <!-- Loaded dynamically -->
+  </div>
+
+  <div class="custom-section">
+    <div class="custom-title">➕ Кастомная деталь / Доп. работа</div>
+    <div class="input-row">
+      <input type="text" id="custom-name" placeholder="Название (напр. Замена подшипника)" style="flex: 2;">
+      <input type="number" id="custom-price" placeholder="Цена RUB" style="flex: 1;">
+    </div>
+    <button class="add-custom-btn" onclick="addCustomItem()">Добавить в смету</button>
+  </div>
+
+  <div class="summary-bar">
+    <div>
+      <div class="total-label">Итоговая смета:</div>
+      <div class="total-amount" id="total-price">0 RUB</div>
+    </div>
+    <button class="send-btn" onclick="submitQuote()">Сохранить смету ➔</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.expand();
+    }
+
+    let selectedItems = {};
+    let catalogData = [];
+
+    async function loadCatalog() {
+      try {
+        const res = await fetch('/api/catalog');
+        catalogData = await res.json();
+        renderCatalog();
+      } catch (e) {
+        console.error("Failed to load catalog", e);
+        // Fallback demo data if offline
+        catalogData = [
+          { id: 1, title: "Замена BMS платы", base_price: 2500 },
+          { id: 2, title: "Прокачка гидравлического тормоза", base_price: 1200 },
+          { id: 3, title: "Замена камеры/покрышки", base_price: 1500 },
+          { id: 4, title: "Ремонт контроллера", base_price: 3500 },
+          { id: 5, title: "Сезонное ТО и гидроизоляция", base_price: 4000 }
+        ];
+        renderCatalog();
+      }
+    }
+
+    function renderCatalog() {
+      const container = document.getElementById('catalog-container');
+      container.innerHTML = '';
+      catalogData.forEach(item => {
+        const qty = selectedItems[item.id] ? selectedItems[item.id].qty : 0;
+        const card = document.createElement('div');
+        card.className = 'item-card';
+        card.innerHTML = `
+          <div class="item-info">
+            <div class="item-title">${item.title}</div>
+            <div class="item-price">${item.base_price} RUB</div>
+          </div>
+          <div class="qty-controls">
+            <button class="qty-btn" onclick="changeQty(${item.id}, -1)">-</button>
+            <span class="qty-count">${qty}</span>
+            <button class="qty-btn" onclick="changeQty(${item.id}, 1)">+</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      calculateTotal();
+    }
+
+    function changeQty(id, delta) {
+      const item = catalogData.find(i => i.id === id);
+      if (!item) return;
+
+      if (!selectedItems[id]) {
+        selectedItems[id] = { id: item.id, title: item.title, price: item.base_price, qty: 0 };
+      }
+
+      selectedItems[id].qty += delta;
+      if (selectedItems[id].qty <= 0) {
+        delete selectedItems[id];
+      }
+      renderCatalog();
+    }
+
+    function addCustomItem() {
+      const name = document.getElementById('custom-name').value.trim();
+      const price = parseFloat(document.getElementById('custom-price').value);
+
+      if (!name || isNaN(price) || price <= 0) {
+        alert("Заполните название и корректную цену");
+        return;
+      }
+
+      const customId = 'custom_' + Date.now();
+      catalogData.push({ id: customId, title: name, base_price: price });
+      selectedItems[customId] = { id: customId, title: name, price: price, qty: 1 };
+
+      document.getElementById('custom-name').value = '';
+      document.getElementById('custom-price').value = '';
+      renderCatalog();
+    }
+
+    function calculateTotal() {
+      let total = 0;
+      Object.values(selectedItems).forEach(item => {
+        total += item.price * item.qty;
+      });
+      document.getElementById('total-price').innerText = total + " RUB";
+    }
+
+    function submitQuote() {
+      const itemsList = Object.values(selectedItems);
+      if (itemsList.length === 0) {
+        alert("Выберите хотя бы одну работу");
+        return;
+      }
+
+      let total = 0;
+      itemsList.forEach(i => total += i.price * i.qty);
+
+      const payload = {
+        action: "master_webapp_quote",
+        items: itemsList,
+        total_price: total,
+        eta: "1-2 дня"
+      };
+
+      if (tg) {
+        tg.sendData(JSON.stringify(payload));
+      } else {
+        alert("Смета сохранена: " + JSON.stringify(payload));
+      }
+    }
+
+    loadCatalog();
+  </script>
+</body>
+</html>
