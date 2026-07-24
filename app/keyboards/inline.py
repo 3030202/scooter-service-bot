@@ -29,7 +29,19 @@ def is_valid_webapp_url(url: str | None) -> bool:
 from app.db.models import TicketStatus, UserRole
 
 
-def main_menu_keyboard(role: UserRole | str = UserRole.CLIENT) -> InlineKeyboardMarkup:
+def main_menu_keyboard(
+    role: UserRole | str | None = None,
+    is_master: bool = False,
+    is_admin: bool = False,
+) -> InlineKeyboardMarkup:
+    if role is None:
+        if is_admin:
+            role = UserRole.ADMIN
+        elif is_master:
+            role = UserRole.MASTER
+        else:
+            role = UserRole.CLIENT
+
     role_val = role.value if isinstance(role, UserRole) else str(role).lower()
     rows = []
 
