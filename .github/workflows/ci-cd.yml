@@ -111,6 +111,7 @@ jobs:
             MAX_PHOTOS_PER_TICKET=8
             MAX_VOICE_SIZE_MB=20
             RATE_LIMIT_PER_MINUTE=20
+            HEALTH_HOST=0.0.0.0
             HEALTH_PORT=8080
             PROMETHEUS_PORT=9090
             WEBAPP_BASE_URL=https://31-76-102-23.sslip.io
