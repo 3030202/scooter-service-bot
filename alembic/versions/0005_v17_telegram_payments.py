@@ -17,8 +17,9 @@ payment_status_enum = sa.Enum("unpaid", "prepaid", "paid", "refunded", name="pay
 
 def upgrade() -> None:
     payment_status_enum.create(op.get_bind(), checkfirst=True)
+    payment_status_col = sa.Enum(name="paymentstatus", create_type=False)
 
-    op.add_column("tickets", sa.Column("payment_status", payment_status_enum, server_default="unpaid", nullable=False))
+    op.add_column("tickets", sa.Column("payment_status", payment_status_col, server_default="unpaid", nullable=False))
     op.add_column("tickets", sa.Column("payment_id", sa.String(255), nullable=True))
     op.create_index("ix_tickets_payment_status", "tickets", ["payment_status"])
 

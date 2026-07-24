@@ -17,8 +17,9 @@ repair_stage_enum = sa.Enum("received", "diagnostics", "parts_ordering", "assemb
 
 def upgrade() -> None:
     repair_stage_enum.create(op.get_bind(), checkfirst=True)
+    repair_stage_col = sa.Enum(name="repairstage", create_type=False)
 
-    op.add_column("tickets", sa.Column("repair_stage", repair_stage_enum, server_default="received", nullable=False))
+    op.add_column("tickets", sa.Column("repair_stage", repair_stage_col, server_default="received", nullable=False))
     op.add_column("tickets", sa.Column("pickup_method", sa.String(50), server_default="self_pickup", nullable=True))
     op.create_index("ix_tickets_repair_stage", "tickets", ["repair_stage"])
 
@@ -26,7 +27,7 @@ def upgrade() -> None:
         "repair_journal_entries",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("ticket_id", sa.Integer(), sa.ForeignKey("tickets.id"), nullable=False),
-        sa.Column("stage", repair_stage_enum, server_default="received", nullable=False),
+        sa.Column("stage", repair_stage_col, server_default="received", nullable=False),
         sa.Column("comment", sa.Text(), nullable=True),
         sa.Column("photo_file_id", sa.String(512), nullable=True),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()")),

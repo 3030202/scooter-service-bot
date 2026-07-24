@@ -23,13 +23,18 @@ def upgrade() -> None:
     media_type.create(op.get_bind(), checkfirst=True)
     slot_status.create(op.get_bind(), checkfirst=True)
 
+    user_role_col = sa.Enum(name="userrole", create_type=False)
+    ticket_status_col = sa.Enum(name="ticketstatus", create_type=False)
+    media_type_col = sa.Enum(name="mediatype", create_type=False)
+    slot_status_col = sa.Enum(name="calendarslotstatus", create_type=False)
+
     op.create_table("users",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("telegram_id", sa.BigInteger(), nullable=False),
         sa.Column("username", sa.String(255)),
         sa.Column("full_name", sa.String(255)),
         sa.Column("phone", sa.String(50)),
-        sa.Column("role", user_role, nullable=False),
+        sa.Column("role", user_role_col, nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()")),
     )
     op.create_index("ix_users_telegram_id", "users", ["telegram_id"], unique=True)
@@ -38,7 +43,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("client_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
         sa.Column("master_id", sa.Integer(), sa.ForeignKey("users.id")),
-        sa.Column("status", ticket_status, nullable=False),
+        sa.Column("status", ticket_status_col, nullable=False),
         sa.Column("description", sa.Text()),
         sa.Column("transcript", sa.Text()),
         sa.Column("ai_fault", sa.Text()),
@@ -57,7 +62,7 @@ def upgrade() -> None:
     op.create_table("media",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("ticket_id", sa.Integer(), sa.ForeignKey("tickets.id"), nullable=False),
-        sa.Column("type", media_type, nullable=False),
+        sa.Column("type", media_type_col, nullable=False),
         sa.Column("telegram_file_id", sa.String(512), nullable=False),
         sa.Column("telegram_file_unique_id", sa.String(512)),
         sa.Column("local_path", sa.String(1024)),
@@ -72,7 +77,7 @@ def upgrade() -> None:
         sa.Column("master_id", sa.Integer(), sa.ForeignKey("users.id")),
         sa.Column("starts_at", sa.DateTime(), nullable=False),
         sa.Column("ends_at", sa.DateTime(), nullable=False),
-        sa.Column("status", slot_status, nullable=False),
+        sa.Column("status", slot_status_col, nullable=False),
         sa.Column("created_at", sa.DateTime(), server_default=sa.text("now()")),
     )
     op.create_index("ix_calendar_slots_ticket_id", "calendar_slots", ["ticket_id"])
