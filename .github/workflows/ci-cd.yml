@@ -115,9 +115,8 @@ jobs:
             PROMETHEUS_PORT=9090
             ENV
             chmod 600 .env
-            docker compose down -v
             docker compose up --build -d
-            sleep 15
+            sleep 5
             docker compose ps
             echo "=== BOT LOGS ==="
-            docker compose logs bot --tail=100
+            docker compose logs bot --tail=200
