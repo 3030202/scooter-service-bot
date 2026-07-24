@@ -84,10 +84,21 @@ slot_text = format_slot
 async def show_home(message: Message, state: FSMContext | None = None) -> None:
     if state:
         await state.clear()
-    telegram_id = message.from_user.id
+    async with AsyncSessionLocal() as session:
+        user = await get_or_create_user(message, session)
+        role = user.role
+        await session.commit()
+
+    role_messages = {
+        UserRole.CLIENT: "👋 **Здравствуйте! Главное меню клиента.**",
+        UserRole.MASTER: "🛠 **Панель Мастера.** Доступные разделы работ:",
+        UserRole.COMMANDER: "🫡 **Панель Командира.** Управление сервисом и мастерами:",
+        UserRole.ADMIN: "🔑 **Панель Администратора системы.**",
+    }
+    header = role_messages.get(role, "Главное меню.")
     await message.answer(
-        "Главное меню. Основные действия доступны кнопками.",
-        reply_markup=main_menu_keyboard(is_master=is_master_id(telegram_id), is_admin=is_admin_id(telegram_id)),
+        header,
+        reply_markup=main_menu_keyboard(role=role),
     )
 
 
@@ -101,10 +112,8 @@ async def start_ticket_flow(message: Message, state: FSMContext) -> None:
 
 
 @router.message(CommandStart())
+@router.message(Command("menu"))
 async def start(message: Message, state: FSMContext) -> None:
-    async with AsyncSessionLocal() as session:
-        await get_or_create_user(message, session)
-        await session.commit()
     await show_home(message, state)
 
 
@@ -115,10 +124,6 @@ async def cancel(message: Message, state: FSMContext) -> None:
 
 
 @router.message(Command("status"))
-async def status(message: Message) -> None:
-    await send_my_orders(message)
-
-
 @router.message(Command("my_orders"))
 async def my_orders(message: Message) -> None:
     await send_my_orders(message)
@@ -133,15 +138,16 @@ async def send_my_orders(message: Message) -> None:
         tickets = (await session.scalars(
             select(Ticket).where(Ticket.client_id == user.id).order_by(desc(Ticket.created_at)).limit(5)
         )).all()
+        role = user.role
 
     if not tickets:
-        await message.answer("Заявок пока нет.", reply_markup=main_menu_keyboard())
+        await message.answer("Заявок пока нет.", reply_markup=main_menu_keyboard(role=role))
         return
 
     text = "📋 Ваши последние заявки:\n\n" + "\n\n".join(
         f"#{ticket.id} — {status_label(ticket.status)}" for ticket in tickets
     )
-    await message.answer(text, reply_markup=main_menu_keyboard(is_master=is_master_id(message.from_user.id), is_admin=is_admin_id(message.from_user.id)))
+    await message.answer(text, reply_markup=main_menu_keyboard(role=role))
 
 
 @router.callback_query(F.data.startswith("menu:"))
@@ -153,9 +159,19 @@ async def menu_actions(callback: CallbackQuery, state: FSMContext) -> None:
 
     if action == "home":
         await state.clear()
+        async with AsyncSessionLocal() as session:
+            user = await session.scalar(select(User).where(User.telegram_id == callback.from_user.id))
+            role = user.role if user else UserRole.CLIENT
+
+        role_messages = {
+            UserRole.CLIENT: "Главное меню клиента.",
+            UserRole.MASTER: "Панель Мастера.",
+            UserRole.COMMANDER: "Панель Командира.",
+            UserRole.ADMIN: "Панель Администратора.",
+        }
         await callback.message.answer(
-            "Главное меню.",
-            reply_markup=main_menu_keyboard(is_master=is_master_id(callback.from_user.id), is_admin=is_admin_id(callback.from_user.id)),
+            role_messages.get(role, "Главное меню."),
+            reply_markup=main_menu_keyboard(role=role),
         )
         await callback.answer()
         return

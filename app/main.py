@@ -51,6 +51,8 @@ async def main() -> None:
     dp.message.outer_middleware(rate_limit)
     dp.callback_query.outer_middleware(rate_limit)
 
+    from app.handlers import admin, client, master
+    dp.include_router(admin.router)
     dp.include_router(master.router)
     dp.include_router(client.router)
 

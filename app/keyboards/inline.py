@@ -26,23 +26,44 @@ def is_valid_webapp_url(url: str | None) -> bool:
     return True
 
 
-def main_menu_keyboard(is_master: bool = False, is_admin: bool = False) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(text="🛴 Новая заявка", callback_data="menu:new_ticket")],
-    ]
-    if is_valid_webapp_url(settings.webapp_base_url):
-        rows.append([InlineKeyboardButton(text="📲 Визуальный выбор поломки (WebApp)", web_app=WebAppInfo(url=f"{settings.webapp_base_url}/webapp/client"))])
-    rows.append([InlineKeyboardButton(text="📋 Мои заявки", callback_data="menu:my_orders")])
+from app.db.models import TicketStatus, UserRole
 
-    if is_master or is_admin:
-        rows.append([InlineKeyboardButton(text="🔧 Мои работы", callback_data="menu:my_jobs")])
-    if is_admin:
-        rows.extend([
-            [InlineKeyboardButton(text="🧭 Очередь сервиса", callback_data="admin:queue:all")],
-            [InlineKeyboardButton(text="📊 Операционный статус", callback_data="admin:stats")],
-            [InlineKeyboardButton(text="📚 Каталог работ", callback_data="admin:catalog")],
-            [InlineKeyboardButton(text="🔁 Retention", callback_data="admin:retention")],
-        ])
+
+def main_menu_keyboard(role: UserRole | str = UserRole.CLIENT) -> InlineKeyboardMarkup:
+    role_val = role.value if isinstance(role, UserRole) else str(role).lower()
+    rows = []
+
+    if role_val == UserRole.ADMIN.value:
+        rows = [
+            [InlineKeyboardButton(text="👥 Управление пользователями и ролями", callback_data="admin:users")],
+            [InlineKeyboardButton(text="🫡 Панель Командира (Заявки & Мастера)", callback_data="commander:all_tickets")],
+            [InlineKeyboardButton(text="🤖 AI-провайдеры и модели", callback_data="admin:ai_providers")],
+            [InlineKeyboardButton(text="📚 Каталог работ и прайс", callback_data="admin:catalog")],
+            [InlineKeyboardButton(text="📊 Системная аналитика", callback_data="admin:stats")],
+            [InlineKeyboardButton(text="🛠 Очередь сервиса (Режим Мастера)", callback_data="admin:queue:all")],
+        ]
+    elif role_val == UserRole.COMMANDER.value:
+        rows = [
+            [InlineKeyboardButton(text="🫡 Все заявки сервиса", callback_data="commander:all_tickets")],
+            [InlineKeyboardButton(text="👷‍♂️ Назначение мастеров", callback_data="commander:assign_masters")],
+            [InlineKeyboardButton(text="📅 Календарь загрузки всех мастеров", callback_data="admin:schedule")],
+            [InlineKeyboardButton(text="📈 Аналитика работы мастеров", callback_data="admin:stats")],
+        ]
+    elif role_val == UserRole.MASTER.value:
+        rows = [
+            [InlineKeyboardButton(text="🛠 Новые заявки (в очереди)", callback_data="admin:queue:all")],
+            [InlineKeyboardButton(text="👨‍🏭 Мои заказы (в работе)", callback_data="menu:my_jobs")],
+            [InlineKeyboardButton(text="📅 Мой календарь загрузки", callback_data="master:my_schedule")],
+            [InlineKeyboardButton(text="📊 Моя статистика", callback_data="admin:stats")],
+        ]
+    else:  # CLIENT
+        rows = [
+            [InlineKeyboardButton(text="🛴 Новая заявка на ремонт", callback_data="menu:new_ticket")],
+        ]
+        if is_valid_webapp_url(settings.webapp_base_url):
+            rows.append([InlineKeyboardButton(text="📲 Выбор поломки (WebApp)", web_app=WebAppInfo(url=f"{settings.webapp_base_url}/webapp/client"))])
+        rows.append([InlineKeyboardButton(text="📋 Мои заявки", callback_data="menu:my_orders")])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -232,4 +253,40 @@ def admin_ai_providers_keyboard(providers: list) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🔄 Обновить", callback_data=f"admin:ai_sync:{prov.id}"),
         ])
     rows.append([InlineKeyboardButton(text="⬅️ В меню", callback_data="menu:home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_users_keyboard(users: list) -> InlineKeyboardMarkup:
+    rows = []
+    role_titles = {
+        UserRole.CLIENT: "👤 Клиент",
+        UserRole.MASTER: "👨‍🏭 Мастер",
+        UserRole.COMMANDER: "🫡 Командир",
+        UserRole.ADMIN: "🔑 Админ",
+    }
+    for user in users[:15]:
+        badge = role_titles.get(user.role, "👤 Клиент")
+        name = user.full_name or f"ID: {user.telegram_id}"
+        rows.append([
+            InlineKeyboardButton(text=f"{badge} | {name}", callback_data=f"admin:user_card:{user.id}")
+        ])
+    rows.append([InlineKeyboardButton(text="⬅️ Главное меню", callback_data="menu:home")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_user_role_keyboard(user_id: int, current_role: UserRole | str) -> InlineKeyboardMarkup:
+    current_val = current_role.value if isinstance(current_role, UserRole) else str(current_role)
+    roles = [
+        (UserRole.CLIENT, "👤 Клиент"),
+        (UserRole.MASTER, "👨‍🏭 Мастер"),
+        (UserRole.COMMANDER, "🫡 Командир (Начальник мастерам)"),
+        (UserRole.ADMIN, "🔑 Администратор"),
+    ]
+    rows = []
+    for r_enum, label in roles:
+        check = "✅ " if r_enum.value == current_val else ""
+        rows.append([
+            InlineKeyboardButton(text=f"{check}{label}", callback_data=f"admin:set_role:{user_id}:{r_enum.value}")
+        ])
+    rows.append([InlineKeyboardButton(text="⬅️ К списку пользователей", callback_data="admin:users")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
