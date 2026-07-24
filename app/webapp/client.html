@@ -208,16 +208,30 @@
       selectedNode = nodeName;
     }
 
-    function submitData() {
+    async function submitData() {
       const details = document.getElementById('details').value.trim();
+      const telegramId = tg?.initDataUnsafe?.user?.id;
       const payload = {
         action: "client_webapp_select",
         node: selectedNode,
-        details: details || "Описание не указано"
+        details: details || "Описание не указано",
+        telegram_id: telegramId,
+        initDataUnsafe: tg?.initDataUnsafe
       };
 
+      try {
+        await fetch('/api/webapp/client_select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error("API submit error:", err);
+      }
+
       if (tg) {
-        tg.sendData(JSON.stringify(payload));
+        try { tg.sendData(JSON.stringify(payload)); } catch (e) {}
+        try { tg.close(); } catch (e) {}
       } else {
         alert("Данные отправлены: " + JSON.stringify(payload));
       }

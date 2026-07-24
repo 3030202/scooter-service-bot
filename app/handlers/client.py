@@ -175,6 +175,7 @@ async def menu_actions(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.message(TicketFSM.waiting_description, F.text | F.voice)
+@router.message(F.voice)
 async def collect_description(message: Message, state: FSMContext, bot: Bot) -> None:
     async with AsyncSessionLocal() as session:
         user = await get_or_create_user(message, session)

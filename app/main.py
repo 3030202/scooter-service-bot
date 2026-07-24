@@ -40,8 +40,8 @@ async def main() -> None:
 
     await run_migrations()
 
-    health_runner = await start_health_server()
     bot = Bot(token=settings.bot_token)
+    health_runner = await start_health_server(bot=bot)
     storage = RedisStorage.from_url(settings.redis_url)
     dp = Dispatcher(storage=storage)
 

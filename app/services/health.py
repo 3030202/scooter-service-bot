@@ -115,15 +115,80 @@ async def api_ai_provider_register_view(request: web.Request) -> web.Response:
         return web.json_response({"error": str(exc)}, status=500)
 
 
-async def start_health_server() -> web.AppRunner | None:
+from typing import TYPE_CHECKING
+from loguru import logger
+from sqlalchemy import select
+from app.db.models import Ticket, TicketStatus, User, UserRole
+from app.keyboards.inline import contact_keyboard
+
+if TYPE_CHECKING:
+    from aiogram import Bot
+
+
+async def api_webapp_client_select_view(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+        telegram_id = data.get("telegram_id")
+        init_data_unsafe = data.get("initDataUnsafe")
+        if not telegram_id and isinstance(init_data_unsafe, dict):
+            telegram_id = init_data_unsafe.get("user", {}).get("id")
+
+        node = data.get("node", "Узел поломки")
+        details = data.get("details", "")
+        description = f"Выбор поломки WebApp: {node}. {details}".strip()
+
+        if not telegram_id:
+            return web.json_response({"error": "telegram_id missing"}, status=400)
+
+        bot = request.app.get("bot")
+        async with AsyncSessionLocal() as session:
+            user = await session.scalar(select(User).where(User.telegram_id == int(telegram_id)))
+            if not user:
+                user = User(telegram_id=int(telegram_id), role=UserRole.CLIENT)
+                session.add(user)
+                await session.flush()
+
+            ticket = Ticket(
+                client_id=user.id,
+                status=TicketStatus.WAITING_PHOTOS,
+                description=description,
+            )
+            session.add(ticket)
+            await session.commit()
+
+            if bot:
+                try:
+                    await bot.send_message(
+                        chat_id=int(telegram_id),
+                        text=(
+                            f"✅ **Данные из WebApp получены!**\n\n"
+                            f"🛠 **Узел неисправности**: {node}\n"
+                            f"📝 **Детали**: {details or 'Не указано'}\n\n"
+                            "Отправьте контактный номер телефона для связи кнопкой ниже."
+                        ),
+                        reply_markup=contact_keyboard(),
+                    )
+                except Exception as b_err:
+                    logger.warning("Could not send Telegram confirmation for WebApp: {}", b_err)
+
+            return web.json_response({"status": "ok", "ticket_id": ticket.id})
+    except Exception as exc:
+        logger.exception("Error handling WebApp client selection: {}", exc)
+        return web.json_response({"error": str(exc)}, status=500)
+
+
+async def start_health_server(bot: "Bot | None" = None) -> web.AppRunner | None:
     if not settings.observability_enabled:
         return None
     app = web.Application()
+    if bot:
+        app["bot"] = bot
     app.router.add_get("/healthz", healthz)
     app.router.add_get("/readyz", readyz)
     app.router.add_get("/metrics", metrics_view)
     app.router.add_get("/webapp/client", webapp_client_view)
     app.router.add_get("/webapp/master", webapp_master_view)
+    app.router.add_post("/api/webapp/client_select", api_webapp_client_select_view)
     app.router.add_get("/api/catalog", api_catalog_view)
     app.router.add_get("/api/ai/providers", api_ai_providers_list_view)
     app.router.add_post("/api/ai/providers", api_ai_provider_register_view)
