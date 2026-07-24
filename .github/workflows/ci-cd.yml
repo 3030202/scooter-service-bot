@@ -115,6 +115,7 @@ jobs:
             PROMETHEUS_PORT=9090
             ENV
             chmod 600 .env
+            docker compose down -v
             docker compose up --build -d
             sleep 15
             docker compose ps
