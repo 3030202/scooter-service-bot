@@ -174,6 +174,77 @@ async def menu_actions(callback: CallbackQuery, state: FSMContext) -> None:
     await callback.answer("Раздел недоступен", show_alert=True)
 
 
+async def execute_ai_diagnosis_and_send_resolution(
+    bot: Bot,
+    chat_id: int,
+    ticket_id: int,
+    image_paths: list[str] | None = None,
+) -> None:
+    reserved_slot = None
+    if image_paths is None:
+        image_paths = []
+
+    async with AsyncSessionLocal() as session:
+        ticket = await session.get(Ticket, ticket_id)
+        if not ticket:
+            await bot.send_message(chat_id, "Заявка не найдена.")
+            return
+
+        ticket.status = TicketStatus.AI_ANALYSIS
+        await session.commit()
+
+        await bot.send_message(chat_id, "🤖 Выполняю предварительную диагностику и расчет стоимости AI...")
+
+        from app.services.catalog import attach_catalog_item, list_catalog, seed_catalog
+        await seed_catalog(session)
+        catalog_items = await list_catalog(session, limit=50)
+
+        # Retrieve attached photo media paths if not explicitly passed
+        if not image_paths:
+            photos = (await session.scalars(
+                select(Media).where(Media.ticket_id == ticket_id, Media.type == MediaType.PHOTO)
+            )).all()
+            for p in photos:
+                if p.local_path and os.path.exists(p.local_path):
+                    image_paths.append(p.local_path)
+
+        try:
+            result = await ai_service.analyze_ticket(
+                ticket.description or "Неисправность не указана",
+                image_paths,
+                catalog_items=catalog_items,
+                session=session,
+            )
+            ticket.ai_fault = result.fault
+            ticket.ai_price_min = result.price_min
+            ticket.ai_price_max = result.price_max
+            ticket.ai_eta = result.eta
+            ticket.ai_raw_json = result.model_dump_json()
+
+            catalog_map = {item.code: item for item in catalog_items}
+            for code in result.matched_catalog_codes:
+                if code in catalog_map:
+                    await attach_catalog_item(session, ticket, catalog_map[code], source="ai")
+        except Exception as exc:
+            logger.exception("AI diagnosis failed for ticket #{}: {}", ticket_id, exc)
+            ticket.ai_fault = ticket.description or "Диагностика требует осмотра мастером"
+            ticket.ai_price_min = 1000.0
+            ticket.ai_price_max = 3000.0
+            ticket.ai_eta = "1-2 дня"
+
+        ticket.status = TicketStatus.DIAGNOSED
+        try:
+            reserved_slot = await reserve_next_slot(session, ticket.id)
+        except Exception as exc:
+            logger.warning("Cannot reserve slot for ticket #{}: {}", ticket_id, exc)
+
+        await session.commit()
+        await session.refresh(ticket)
+        preview = build_client_preview(ticket, slot_text(reserved_slot))
+
+    await bot.send_message(chat_id, preview, reply_markup=client_confirmation_keyboard(ticket_id))
+
+
 @router.message(TicketFSM.waiting_description, F.text | F.voice)
 @router.message(F.voice)
 async def collect_description(message: Message, state: FSMContext, bot: Bot) -> None:
@@ -192,7 +263,7 @@ async def collect_description(message: Message, state: FSMContext, bot: Bot) -> 
             text = await ai_service.transcribe_voice(str(voice_path))
 
         if not text.strip():
-            await message.answer("Не получилось получить описание. Отправьте проблему текстом или более четким голосовым.")
+            await message.answer("Не получилось получить описание. Отправьте проблему текстом или голосовым.")
             return
 
         ticket = Ticket(
@@ -218,15 +289,24 @@ async def collect_description(message: Message, state: FSMContext, bot: Bot) -> 
         metrics.inc("tickets_draft_total")
         await state.update_data(ticket_id=ticket.id)
 
-    await message.answer(
-        "✅ Описание принято. Теперь отправьте телефон кнопкой ниже или напишите номер сообщением.",
-        reply_markup=contact_keyboard(),
+    reply_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✨ Получить расчёт AI", callback_data=f"client:run_ai:{ticket.id}")],
+            [InlineKeyboardButton(text="📱 Отправить контакт", callback_data=f"client:add_phone:{ticket.id}")],
+        ]
     )
-    await state.set_state(TicketFSM.waiting_contact)
+
+    if message.voice:
+        msg_text = f"🎙 **Голосовое сообщение распознано:**\n\n«{text.strip()}»\n\nВы можете добавить фото поломки или сразу получить расчет AI:"
+    else:
+        msg_text = f"✅ **Описание принято:**\n\n«{text.strip()}»\n\nВы можете добавить фото поломки или сразу получить расчет AI:"
+
+    await message.answer(msg_text, reply_markup=reply_kb)
+    await state.set_state(TicketFSM.waiting_photos)
 
 
 @router.message(TicketFSM.waiting_contact, F.contact | F.text)
-async def collect_contact(message: Message, state: FSMContext) -> None:
+async def collect_contact(message: Message, state: FSMContext, bot: Bot) -> None:
     data = await state.get_data()
     ticket_id = data.get("ticket_id")
     if not ticket_id:
@@ -248,40 +328,50 @@ async def collect_contact(message: Message, state: FSMContext) -> None:
         ticket.status = TicketStatus.WAITING_PHOTOS
         await session.commit()
 
+    reply_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✨ Получить расчёт AI прямо сейчас", callback_data=f"client:run_ai:{ticket_id}")],
+        ]
+    )
     await message.answer(
-        f"✅ Телефон сохранен. Теперь отправьте до {settings.max_photos_per_ticket} фото поломки одним сообщением или альбомом.",
-        reply_markup=ReplyKeyboardRemove(),
+        f"✅ Телефон сохранен. Теперь отправьте фото поломки или нажмите кнопку получения расчёта.",
+        reply_markup=reply_kb,
     )
     await state.set_state(TicketFSM.waiting_photos)
 
 
 @router.message(TicketFSM.waiting_photos, F.photo)
+@router.message(F.photo)
 async def collect_photos(message: Message, state: FSMContext, bot: Bot) -> None:
     async def process_album(messages: list[Message]) -> None:
         data = await state.get_data()
         ticket_id = data.get("ticket_id")
-        if not ticket_id:
-            await message.answer("Не нашел активную заявку.", reply_markup=main_menu_keyboard())
-            return
-
-        if len(messages) > settings.max_photos_per_ticket:
-            messages = messages[:settings.max_photos_per_ticket]
-            await message.answer(f"Принял первые {settings.max_photos_per_ticket} фото, остальные проигнорированы.")
-
-        image_paths: list[str] = []
-        reserved_slot = None
 
         async with AsyncSessionLocal() as session:
-            ticket = await session.get(Ticket, ticket_id)
-            if not ticket:
-                await message.answer("Заявка не найдена.", reply_markup=main_menu_keyboard())
-                return
+            user = await get_or_create_user(message, session)
 
-            user = await session.get(User, ticket.client_id)
-            if not user or user.telegram_id != message.from_user.id:
-                await message.answer("Эта заявка принадлежит другому пользователю.", reply_markup=main_menu_keyboard())
-                return
+            if not ticket_id:
+                ticket = await session.scalar(
+                    select(Ticket)
+                    .where(Ticket.client_id == user.id, Ticket.status.in_([TicketStatus.DRAFT, TicketStatus.WAITING_PHOTOS, TicketStatus.NEW]))
+                    .order_by(desc(Ticket.created_at))
+                    .limit(1)
+                )
+                if not ticket:
+                    ticket = Ticket(
+                        client_id=user.id,
+                        status=TicketStatus.DRAFT,
+                        description="Заявка по фотографиям поломки",
+                    )
+                    session.add(ticket)
+                    await session.flush()
+                ticket_id = ticket.id
 
+            if len(messages) > settings.max_photos_per_ticket:
+                messages = messages[:settings.max_photos_per_ticket]
+                await message.answer(f"Принял первые {settings.max_photos_per_ticket} фото.")
+
+            image_paths: list[str] = []
             for msg in messages:
                 photo = msg.photo[-1]
                 path = Path(settings.storage_dir) / "photos" / str(ticket_id) / f"{photo.file_unique_id}.jpg"
@@ -296,49 +386,13 @@ async def collect_photos(message: Message, state: FSMContext, bot: Bot) -> None:
                     mime_type="image/jpeg",
                 ))
 
-            ticket.status = TicketStatus.AI_ANALYSIS
             await session.commit()
+            await state.update_data(ticket_id=ticket_id)
 
-            await message.answer("🤖 Фото получены. Выполняю предварительную диагностику.")
-
-            from app.services.catalog import attach_catalog_item, list_catalog, seed_catalog
-            await seed_catalog(session)
-            catalog_items = await list_catalog(session, limit=50)
-
-            result = await ai_service.analyze_ticket(ticket.description or "", image_paths, catalog_items=catalog_items)
-
-            ticket.ai_fault = result.fault
-            ticket.ai_price_min = result.price_min
-            ticket.ai_price_max = result.price_max
-            ticket.ai_eta = result.eta
-            ticket.ai_raw_json = result.model_dump_json()
-            ticket.status = TicketStatus.DIAGNOSED
-
-            # Auto-attach matched catalog service items
-            catalog_map = {item.code: item for item in catalog_items}
-            for code in result.matched_catalog_codes:
-                if code in catalog_map:
-                    await attach_catalog_item(session, ticket, catalog_map[code], source="ai")
-
-            try:
-                reserved_slot = await reserve_next_slot(session, ticket.id)
-            except Exception as exc:
-                logger.warning("Cannot reserve slot: {}", exc)
-
-            await session.commit()
-            await session.refresh(ticket)
-
-            preview = build_client_preview(ticket, slot_text(reserved_slot))
-
-        await message.answer(preview, reply_markup=client_confirmation_keyboard(ticket_id))
+        await execute_ai_diagnosis_and_send_resolution(bot, message.chat.id, ticket_id, image_paths)
         await state.clear()
 
     await media_collector.add(message, process_album)
-
-
-@router.message(TicketFSM.waiting_photos)
-async def waiting_photos_fallback(message: Message) -> None:
-    await message.answer("Нужно отправить фото. Для отмены нажмите кнопку в меню или /cancel.")
 
 
 @router.callback_query(F.data.startswith("client:"))
@@ -348,6 +402,17 @@ async def client_ticket_actions(callback: CallbackQuery, bot: Bot) -> None:
         ticket_id = int(ticket_id_raw)
     except (ValueError, AttributeError):
         await callback.answer("Некорректная команда", show_alert=True)
+        return
+
+    if action == "run_ai":
+        await callback.answer("Запускаю расчёт AI...")
+        await execute_ai_diagnosis_and_send_resolution(bot, callback.message.chat.id, ticket_id)
+        return
+
+    if action == "add_phone":
+        await callback.answer()
+        if callback.message:
+            await callback.message.answer("Отправьте контактный номер телефона для связи:", reply_markup=contact_keyboard())
         return
 
     notify_masters: str | None = None

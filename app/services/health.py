@@ -158,15 +158,22 @@ async def api_webapp_client_select_view(request: web.Request) -> web.Response:
 
             if bot:
                 try:
+                    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+                    reply_kb = InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [InlineKeyboardButton(text="✨ Получить расчёт AI", callback_data=f"client:run_ai:{ticket.id}")],
+                            [InlineKeyboardButton(text="📱 Отправить контакт", callback_data=f"client:add_phone:{ticket.id}")],
+                        ]
+                    )
                     await bot.send_message(
                         chat_id=int(telegram_id),
                         text=(
                             f"✅ **Данные из WebApp получены!**\n\n"
                             f"🛠 **Узел неисправности**: {node}\n"
                             f"📝 **Детали**: {details or 'Не указано'}\n\n"
-                            "Отправьте контактный номер телефона для связи кнопкой ниже."
+                            "Вы можете отправить фото поломки в чат или сразу получить предварительный расчёт AI:"
                         ),
-                        reply_markup=contact_keyboard(),
+                        reply_markup=reply_kb,
                     )
                 except Exception as b_err:
                     logger.warning("Could not send Telegram confirmation for WebApp: {}", b_err)
