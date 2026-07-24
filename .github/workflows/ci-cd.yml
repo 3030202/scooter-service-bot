@@ -116,7 +116,7 @@ jobs:
             ENV
             chmod 600 .env
             docker compose up --build -d
-            sleep 5
+            sleep 15
             docker compose ps
             echo "=== BOT LOGS ==="
             docker compose logs bot --tail=100
