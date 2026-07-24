@@ -1,14 +1,14 @@
 """ai providers and dynamic models auto discovery
 
-Revision ID: 0007_v19_ai_providers
-Revises: 0006_v18_workload_calendar
+Revision ID: 0008_v19_ai_providers
+Revises: 0007_v18_workload_calendar
 Create Date: 2026-07-23
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0007_v19_ai_providers"
-down_revision = "0006_v18_workload_calendar"
+revision = "0008_v19_ai_providers"
+down_revision = "0007_v18_workload_calendar"
 branch_labels = None
 depends_on = None
 

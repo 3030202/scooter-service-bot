@@ -1,14 +1,14 @@
 """workload calendar and slot notes
 
-Revision ID: 0006_v18_workload_calendar
-Revises: 0005_v17_telegram_payments
+Revision ID: 0007_v18_workload_calendar
+Revises: 0006_add_commander_role
 Create Date: 2026-07-23
 """
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0006_v18_workload_calendar"
-down_revision = "0005_v17_telegram_payments"
+revision = "0007_v18_workload_calendar"
+down_revision = "0006_add_commander_role"
 branch_labels = None
 depends_on = None
 
