@@ -42,19 +42,19 @@ class CalendarSlotStatus(str, enum.Enum):
 
 
 class RepairStage(str, enum.Enum):
-    RECEIVED = "received"
-    DIAGNOSTICS = "diagnostics"
-    PARTS_ORDERING = "parts_ordering"
-    ASSEMBLY = "assembly"
-    TESTING = "testing"
-    READY = "ready"
+    RECEIVED = "RECEIVED"
+    DIAGNOSTICS = "DIAGNOSTICS"
+    PARTS_ORDERING = "PARTS_ORDERING"
+    ASSEMBLY = "ASSEMBLY"
+    TESTING = "TESTING"
+    READY = "READY"
 
 
 class PaymentStatus(str, enum.Enum):
-    UNPAID = "unpaid"
-    PREPAID = "prepaid"
-    PAID = "paid"
-    REFUNDED = "refunded"
+    UNPAID = "UNPAID"
+    PREPAID = "PREPAID"
+    PAID = "PAID"
+    REFUNDED = "REFUNDED"
 
 
 class User(Base):

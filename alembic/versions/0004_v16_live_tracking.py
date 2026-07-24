@@ -13,13 +13,13 @@ down_revision = "0003_v13_commercial_layer"
 branch_labels = None
 depends_on = None
 
-repair_stage_enum = PGEnum("received", "diagnostics", "parts_ordering", "assembly", "testing", "ready", name="repairstage", create_type=False)
+repair_stage_enum = PGEnum("RECEIVED", "DIAGNOSTICS", "PARTS_ORDERING", "ASSEMBLY", "TESTING", "READY", name="repairstage", create_type=False)
 
 
 def upgrade() -> None:
     repair_stage_enum.create(op.get_bind(), checkfirst=True)
 
-    op.add_column("tickets", sa.Column("repair_stage", repair_stage_enum, server_default="received", nullable=False))
+    op.add_column("tickets", sa.Column("repair_stage", repair_stage_enum, server_default="RECEIVED", nullable=False))
     op.add_column("tickets", sa.Column("pickup_method", sa.String(50), server_default="self_pickup", nullable=True))
     op.create_index("ix_tickets_repair_stage", "tickets", ["repair_stage"])
 

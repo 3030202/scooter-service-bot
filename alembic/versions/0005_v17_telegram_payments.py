@@ -13,13 +13,13 @@ down_revision = "0004_v16_live_tracking"
 branch_labels = None
 depends_on = None
 
-payment_status_enum = PGEnum("unpaid", "prepaid", "paid", "refunded", name="paymentstatus", create_type=False)
+payment_status_enum = PGEnum("UNPAID", "PREPAID", "PAID", "REFUNDED", name="paymentstatus", create_type=False)
 
 
 def upgrade() -> None:
     payment_status_enum.create(op.get_bind(), checkfirst=True)
 
-    op.add_column("tickets", sa.Column("payment_status", payment_status_enum, server_default="unpaid", nullable=False))
+    op.add_column("tickets", sa.Column("payment_status", payment_status_enum, server_default="UNPAID", nullable=False))
     op.add_column("tickets", sa.Column("payment_id", sa.String(255), nullable=True))
     op.create_index("ix_tickets_payment_status", "tickets", ["payment_status"])
 
