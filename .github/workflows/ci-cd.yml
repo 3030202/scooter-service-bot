@@ -86,34 +86,34 @@ jobs:
             git checkout main
             git reset --hard origin/main
             cat << 'ENV' > .env
-BOT_TOKEN=8713784158:AAGelFIDq-VO80Uuqqc1HKG_JIiN_dz_jxE
-AI_API_KEY=v1.cP221wTBTN7IfK_4bPUlbc0NYVlbe53HvqHJOv17R2qPIY4830wnTCRwbAb0nayPEgaTl7X_7Aw168XMK5mR9qy5jb9sMy39bchiNbxIMxCB6Tt4I1V1tEgwR9ptYEcF
-AI_BASE_URL=https://gpt.mwsapis.ru/projects/d0g4h/openai/v1
-AI_TEXT_MODEL=gpt-4o
-AI_TRANSCRIBE_MODEL=whisper-1
+            BOT_TOKEN=8713784158:AAGelFIDq-VO80Uuqqc1HKG_JIiN_dz_jxE
+            AI_API_KEY=v1.cP221wTBTN7IfK_4bPUlbc0NYVlbe53HvqHJOv17R2qPIY4830wnTCRwbAb0nayPEgaTl7X_7Aw168XMK5mR9qy5jb9sMy39bchiNbxIMxCB6Tt4I1V1tEgwR9ptYEcF
+            AI_BASE_URL=https://gpt.mwsapis.ru/projects/d0g4h/openai/v1
+            AI_TEXT_MODEL=gpt-4o
+            AI_TRANSCRIBE_MODEL=whisper-1
 
-MASTERS_CHAT_ID=-1005569843365
-MASTER_TELEGRAM_IDS=8012450090
-ADMIN_TELEGRAM_IDS=189560971
+            MASTERS_CHAT_ID=-1005569843365
+            MASTER_TELEGRAM_IDS=8012450090
+            ADMIN_TELEGRAM_IDS=189560971
 
-POSTGRES_DB=scooter_service
-POSTGRES_USER=scooter_user
-POSTGRES_PASSWORD=scooter_secure_pass_2026
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-DATABASE_URL=postgresql+asyncpg://scooter_user:scooter_secure_pass_2026@postgres:5432/scooter_service
+            POSTGRES_DB=scooter_service
+            POSTGRES_USER=scooter_user
+            POSTGRES_PASSWORD=scooter_secure_pass_2026
+            POSTGRES_HOST=postgres
+            POSTGRES_PORT=5432
+            DATABASE_URL=postgresql+asyncpg://scooter_user:scooter_secure_pass_2026@postgres:5432/scooter_service
 
-REDIS_URL=redis://redis:6379/0
-RUN_MIGRATIONS_ON_STARTUP=true
+            REDIS_URL=redis://redis:6379/0
+            RUN_MIGRATIONS_ON_STARTUP=true
 
-STORAGE_DIR=storage
-MEDIA_GROUP_WAIT_SECONDS=2.0
-MAX_PHOTOS_PER_TICKET=8
-MAX_VOICE_SIZE_MB=20
-RATE_LIMIT_PER_MINUTE=20
-HEALTH_PORT=8080
-PROMETHEUS_PORT=9090
-ENV
+            STORAGE_DIR=storage
+            MEDIA_GROUP_WAIT_SECONDS=2.0
+            MAX_PHOTOS_PER_TICKET=8
+            MAX_VOICE_SIZE_MB=20
+            RATE_LIMIT_PER_MINUTE=20
+            HEALTH_PORT=8080
+            PROMETHEUS_PORT=9090
+            ENV
             chmod 600 .env
             docker compose up --build -d
             docker compose ps
