@@ -36,9 +36,8 @@ class TestKeyboards(unittest.TestCase):
     def test_main_menu_staff_buttons(self):
         keyboard = main_menu_keyboard(is_master=True, is_admin=True)
         callbacks = [button.callback_data for row in keyboard.inline_keyboard for button in row]
-        self.assertIn("menu:new_ticket", callbacks)
-        self.assertIn("menu:my_orders", callbacks)
-        self.assertIn("menu:my_jobs", callbacks)
+        self.assertNotIn("menu:new_ticket", callbacks)
+        self.assertIn("admin:users", callbacks)
         self.assertIn("admin:queue:all", callbacks)
 
     def test_admin_queue_filters(self):
