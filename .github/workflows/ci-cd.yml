@@ -89,7 +89,7 @@ jobs:
             BOT_TOKEN=8713784158:AAGelFIDq-VO80Uuqqc1HKG_JIiN_dz_jxE
             AI_API_KEY=v1.cP221wTBTN7IfK_4bPUlbc0NYVlbe53HvqHJOv17R2qPIY4830wnTCRwbAb0nayPEgaTl7X_7Aw168XMK5mR9qy5jb9sMy39bchiNbxIMxCB6Tt4I1V1tEgwR9ptYEcF
             AI_BASE_URL=https://gpt.mwsapis.ru/projects/d0g4h/openai/v1
-            AI_TEXT_MODEL=gpt-4o
+            AI_TEXT_MODEL=kimi-k2-6
             AI_TRANSCRIBE_MODEL=whisper-1
 
             MASTERS_CHAT_ID=-1005569843365
