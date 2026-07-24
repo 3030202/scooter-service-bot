@@ -5,7 +5,7 @@ from loguru import logger
 from sqlalchemy import desc, select
 
 from app.config import settings
-from app.db.base import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal
 from app.db.models import CalendarSlot, Ticket, TicketStatus, User, UserRole
 from app.keyboards.inline import (
     admin_assign_keyboard,
