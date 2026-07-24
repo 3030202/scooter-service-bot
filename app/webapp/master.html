@@ -10,13 +10,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-color: #090d16;
-      --card-bg: rgba(26, 34, 52, 0.7);
+      --bg-color: var(--tg-theme-bg-color, #090d16);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #1a2234);
+      --text-main: var(--tg-theme-text-color, #f8fafc);
+      --text-muted: var(--tg-theme-hint-color, #94a3b8);
+      --accent-color: var(--tg-theme-button-color, #10b981);
+      --accent-text: var(--tg-theme-button-text-color, #ffffff);
+      --card-bg: rgba(26, 34, 52, 0.75);
       --card-border: rgba(255, 255, 255, 0.08);
-      --accent-color: #10b981;
       --accent-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
       --radius: 14px;
     }
 
@@ -25,23 +27,26 @@
       margin: 0;
       padding: 0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
       background-color: var(--bg-color);
       color: var(--text-main);
       padding: 16px;
-      padding-bottom: 90px;
+      padding-bottom: calc(95px + env(safe-area-inset-bottom, 0px));
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
 
     .header {
       margin-bottom: 20px;
+      animation: fadeIn 0.3s ease-out;
     }
 
     .header h1 {
       font-size: 20px;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-main);
     }
 
     .header p {
@@ -64,17 +69,25 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(10px);
+      transition: transform 0.15s ease, border-color 0.2s ease;
+    }
+
+    .item-card.has-qty {
+      border-color: var(--accent-color);
+      background: rgba(16, 185, 129, 0.12);
     }
 
     .item-info {
       flex: 1;
+      padding-right: 12px;
     }
 
     .item-title {
       font-size: 14px;
       font-weight: 600;
       margin-bottom: 4px;
+      color: var(--text-main);
     }
 
     .item-price {
@@ -90,21 +103,32 @@
     }
 
     .qty-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.1);
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.12);
       border: none;
-      color: #fff;
-      font-size: 16px;
+      color: var(--text-main);
+      font-size: 18px;
+      font-weight: 600;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.1s ease, background 0.2s ease;
+    }
+
+    .qty-btn:active {
+      transform: scale(0.92);
+      background: rgba(255, 255, 255, 0.22);
     }
 
     .qty-count {
-      font-size: 14px;
-      font-weight: 600;
-      min-width: 20px;
+      font-size: 15px;
+      font-weight: 700;
+      min-width: 24px;
       text-align: center;
+      color: var(--text-main);
     }
 
     .custom-section {
@@ -119,34 +143,45 @@
       font-size: 14px;
       font-weight: 600;
       margin-bottom: 10px;
+      color: var(--text-main);
     }
 
     .input-row {
       display: flex;
       gap: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     input {
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--secondary-bg);
       border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 10px;
-      color: #fff;
+      border-radius: 10px;
+      padding: 11px;
+      color: var(--text-main);
       font-size: 13px;
       outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    input:focus {
+      border-color: var(--accent-color);
     }
 
     .add-custom-btn {
       background: rgba(255, 255, 255, 0.1);
-      border: none;
-      border-radius: 8px;
-      padding: 10px;
-      color: #fff;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 11px;
+      color: var(--text-main);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       width: 100%;
+      transition: background 0.2s ease;
+    }
+
+    .add-custom-btn:active {
+      background: rgba(255, 255, 255, 0.18);
     }
 
     .summary-bar {
@@ -154,13 +189,14 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(15, 23, 42, 0.95);
+      background: var(--secondary-bg);
       border-top: 1px solid var(--card-border);
-      padding: 16px;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
       display: flex;
       align-items: center;
       justify-content: space-between;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
+      z-index: 100;
     }
 
     .total-label {
@@ -178,11 +214,23 @@
       background: var(--accent-gradient);
       border: none;
       border-radius: var(--radius);
-      padding: 12px 20px;
-      color: #fff;
+      padding: 12px 22px;
+      color: var(--accent-text);
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: transform 0.15s ease, opacity 0.2s ease;
+    }
+
+    .send-btn:active {
+      transform: scale(0.96);
+      opacity: 0.92;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   </style>
 </head>
@@ -217,6 +265,7 @@
     const tg = window.Telegram?.WebApp;
     if (tg) {
       tg.expand();
+      tg.enableClosingConfirmation();
     }
 
     let selectedItems = {};
@@ -229,7 +278,6 @@
         renderCatalog();
       } catch (e) {
         console.error("Failed to load catalog", e);
-        // Fallback demo data if offline
         catalogData = [
           { id: 1, title: "Замена BMS платы", base_price: 2500 },
           { id: 2, title: "Прокачка гидравлического тормоза", base_price: 1200 },
@@ -247,7 +295,7 @@
       catalogData.forEach(item => {
         const qty = selectedItems[item.id] ? selectedItems[item.id].qty : 0;
         const card = document.createElement('div');
-        card.className = 'item-card';
+        card.className = 'item-card' + (qty > 0 ? ' has-qty' : '');
         card.innerHTML = `
           <div class="item-info">
             <div class="item-title">${item.title}</div>
@@ -265,6 +313,10 @@
     }
 
     function changeQty(id, delta) {
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
+      }
+
       const item = catalogData.find(i => i.id === id);
       if (!item) return;
 
@@ -284,8 +336,15 @@
       const price = parseFloat(document.getElementById('custom-price').value);
 
       if (!name || isNaN(price) || price <= 0) {
+        if (tg?.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('error');
+        }
         alert("Заполните название и корректную цену");
         return;
+      }
+
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('success');
       }
 
       const customId = 'custom_' + Date.now();
@@ -308,8 +367,15 @@
     function submitQuote() {
       const itemsList = Object.values(selectedItems);
       if (itemsList.length === 0) {
+        if (tg?.HapticFeedback) {
+          tg.HapticFeedback.notificationOccurred('warning');
+        }
         alert("Выберите хотя бы одну работу");
         return;
+      }
+
+      if (tg?.HapticFeedback) {
+        tg.HapticFeedback.notificationOccurred('success');
       }
 
       let total = 0;

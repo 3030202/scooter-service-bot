@@ -5,9 +5,8 @@ from aiogram.fsm.storage.redis import RedisStorage
 from loguru import logger
 
 from app.config import settings
-from app.handlers import client, master
 from app.logging import setup_logging
-from app.middlewares import ErrorMiddleware, RateLimitMiddleware
+from app.middlewares import DbSessionMiddleware, ErrorMiddleware, RateLimitMiddleware
 from app.services.health import start_health_server, stop_health_server
 from app.services.metrics import metrics
 from app.services.retention import start_retention_scheduler
@@ -45,8 +44,10 @@ async def main() -> None:
     storage = RedisStorage.from_url(settings.redis_url)
     dp = Dispatcher(storage=storage)
 
+    db_session = DbSessionMiddleware()
     errors = ErrorMiddleware()
     rate_limit = RateLimitMiddleware(settings.rate_limit_per_minute)
+    dp.update.outer_middleware(db_session)
     dp.update.outer_middleware(errors)
     dp.message.outer_middleware(rate_limit)
     dp.callback_query.outer_middleware(rate_limit)

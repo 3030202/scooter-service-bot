@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import os
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -11,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db.models import ServiceCatalogItem
 from app.services.ai_provider_service import get_active_ai_service_client
+from app.services.ai_prompts import DIAGNOSIS_SYSTEM_PROMPT, build_diagnosis_user_prompt
 
 
 class AIDiagnosisResult(BaseModel):
@@ -29,8 +31,6 @@ class AIDiagnosisResult(BaseModel):
     )
 
 
-import os
-
 class AIService:
     def __init__(self) -> None:
         self.fallback_client = AsyncOpenAI(api_key=settings.ai_api_key, base_url=settings.ai_base_url)
@@ -40,7 +40,6 @@ class AIService:
         target_path = path
         wav_path = None
         try:
-            # Convert Telegram .ogg Opus file to .wav format if needed
             if path.endswith(".ogg") or path.endswith(".oga"):
                 wav_path = path + ".wav"
                 proc = await asyncio.create_subprocess_exec(
@@ -96,36 +95,13 @@ class AIService:
                 )
         catalog_str = "\n".join(catalog_context_lines) if catalog_context_lines else "Доступные работы: battery_diag, controller_repair, tire_tube, brake_service, display_throttle"
 
-        prompt = f"""
-Ты главный технический диагност сервисного центра электротранспорта.
-Проанализируй симптомы поломки и фотографии самоката.
-
-Каталог доступных сервисных работ:
-{catalog_str}
-
-Верни СТРОГО JSON-объект следующей структуры:
-{{
-  "fault": "вероятная неисправность",
-  "reasoning": "краткое экспертное объяснение причины",
-  "matched_catalog_codes": ["code1", "code2"],
-  "price_min": 1000,
-  "price_max": 3000,
-  "eta": "1-2 дня",
-  "parts": ["деталь 1"],
-  "risk_level": "low|medium|high",
-  "recommended_checklist": ["проверить напряжение", "осмотреть контакты"]
-}}
-
-Описание проблемы от клиента:
-{description}
-""".strip()
+        prompt = build_diagnosis_user_prompt(description, catalog_str)
 
         if session is not None:
             client, model_name = await get_active_ai_service_client(session)
         else:
             client, model_name = self.client, settings.ai_text_model
 
-        # Retry loop with exponential backoff (up to 3 attempts)
         max_attempts = 3
         delay = 1.0
 
@@ -136,10 +112,7 @@ class AIService:
                     messages=[
                         {
                             "role": "system",
-                            "content": (
-                                "Ты инженер-диагност электротранспорта. "
-                                "Отвечай строго в формате JSON, соответствующем запрошенной схеме."
-                            ),
+                            "content": DIAGNOSIS_SYSTEM_PROMPT,
                         },
                         {"role": "user", "content": [{"type": "text", "text": prompt}, *images]},
                     ],
@@ -147,7 +120,6 @@ class AIService:
                 )
                 content = response.choices[0].message.content or "{}"
 
-                # Handle possible markdown wrapping ```json ... ```
                 cleaned = content.strip()
                 if cleaned.startswith("```json"):
                     cleaned = cleaned[7:]
