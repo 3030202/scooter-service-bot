@@ -78,8 +78,24 @@ services:
     depends_on:
       - bot
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: scooter_service_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command: caddy reverse-proxy --from 31-76-102-23.sslip.io --to bot:8080
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - bot
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
   prometheus_data:
+  caddy_data:
+  caddy_config:

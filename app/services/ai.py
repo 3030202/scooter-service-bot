@@ -29,23 +29,46 @@ class AIDiagnosisResult(BaseModel):
     )
 
 
+import os
+
 class AIService:
     def __init__(self) -> None:
         self.fallback_client = AsyncOpenAI(api_key=settings.ai_api_key, base_url=settings.ai_base_url)
         self.client = self.fallback_client
 
     async def transcribe_voice(self, path: str, session: Any = None) -> str:
+        target_path = path
+        wav_path = None
         try:
+            # Convert Telegram .ogg Opus file to .wav format if needed
+            if path.endswith(".ogg") or path.endswith(".oga"):
+                wav_path = path + ".wav"
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-i", path, "-ar", "16000", "-ac", "1", wav_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await proc.communicate()
+                if proc.returncode == 0 and os.path.exists(wav_path):
+                    target_path = wav_path
+
             client, model_name = await get_active_ai_service_client(session)
-            with open(path, "rb") as audio:
+            with open(target_path, "rb") as audio:
                 result = await client.audio.transcriptions.create(
                     model=settings.ai_transcribe_model,
                     file=audio,
                 )
-            return getattr(result, "text", "") or ""
+            text = getattr(result, "text", "") or ""
+            return text.strip()
         except Exception as exc:
             logger.exception("Voice transcription failed: {}", exc)
             return ""
+        finally:
+            if wav_path and os.path.exists(wav_path):
+                try:
+                    os.remove(wav_path)
+                except Exception:
+                    pass
 
     async def analyze_ticket(
         self,
