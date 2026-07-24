@@ -44,7 +44,7 @@ async def create_retention_after_done(session, ticket: Ticket) -> RetentionRemin
         client_id=ticket.client_id,
         ticket_id=ticket.id,
         kind="post_repair_checkup",
-        due_at=datetime.now(timezone.utc) + timedelta(days=30),
+        due_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30),
         message=message,
     )
     session.add(reminder)
@@ -79,7 +79,7 @@ async def client_summary(session, user: User) -> str:
 async def due_retention_items(session, limit: int = 10) -> list[RetentionReminder]:
     return (await session.scalars(
         select(RetentionReminder)
-        .where(RetentionReminder.is_sent == False, RetentionReminder.due_at <= datetime.now(timezone.utc))
+        .where(RetentionReminder.is_sent == False, RetentionReminder.due_at <= datetime.now(timezone.utc).replace(tzinfo=None))
         .order_by(RetentionReminder.due_at)
         .limit(limit)
     )).all()

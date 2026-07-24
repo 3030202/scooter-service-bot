@@ -169,7 +169,7 @@ async def admin_stats(callback: CallbackQuery) -> None:
         await callback.answer("Доступ только для админа.", show_alert=True)
         return
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=settings.stale_ticket_minutes)
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=settings.stale_ticket_minutes)
     async with AsyncSessionLocal() as session:
         rows = (await session.execute(select(Ticket.status, func.count(Ticket.id)).group_by(Ticket.status))).all()
         stale_count = await session.scalar(
