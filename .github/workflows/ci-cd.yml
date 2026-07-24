@@ -113,6 +113,7 @@ jobs:
             RATE_LIMIT_PER_MINUTE=20
             HEALTH_PORT=8080
             PROMETHEUS_PORT=9090
+            WEBAPP_BASE_URL=https://31.76.102.23.nip.io
             ENV
             chmod 600 .env
             docker compose up --build -d
