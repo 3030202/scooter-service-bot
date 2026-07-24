@@ -56,7 +56,7 @@ async def main() -> None:
 
     retention_task = start_retention_scheduler(bot)
 
-    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.delete_webhook(drop_pending_updates=False)
     metrics.inc("starts_total")
     try:
         await dp.start_polling(bot)
